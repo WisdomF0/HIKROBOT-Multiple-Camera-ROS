@@ -19,3 +19,9 @@ catkin_make
 ```
 
 ## 运行
+
+```
+cd catkin_ws  
+source devel/setup.bash
+roslaunch hikrobot_camera hikrobot_camera.launch
+```
