@@ -8,7 +8,7 @@ file:///opt/MVS/doc/Machine%20Vision%20Camera%20SDK%20(C)_Developer%20Guide_V4.3
 
 ## 编译
 
-、、、
+```
 mkdir catkin_ws  
 cd catkin_ws  
 mkdir src  
@@ -16,6 +16,6 @@ cd src
 git clone https://github.com/yizhengliu66/HIKROBOT-Multiple-Camera-ROS.git  
 cd ..  
 catkin_make
-、、、
+```
 
 ## 运行
