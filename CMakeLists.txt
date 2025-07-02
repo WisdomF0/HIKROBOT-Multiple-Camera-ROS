@@ -27,7 +27,7 @@ include_directories(
 )
 
 LINK_DIRECTORIES(
-/opt/MVS/lib/64/
+/opt/MVS/lib/aarch64/
 )
 
 add_executable(${PROJECT_NAME}
@@ -36,13 +36,13 @@ src/hikrobot_camera.cpp)
  target_link_libraries(${PROJECT_NAME}
    ${catkin_LIBRARIES}
    ${OpenCV_LIBRARIES}
-   GCBase_gcc447_v3_0
+   #GCBase_gcc447_v3_0
    MvCameraControl
    #GenApi_gcc421_v3_0
    MVGigEVisionSDK
-   log4cpp_gcc447_v3_0
+   #log4cpp_gcc447_v3_0
    MVRender
-   Log_gcc447_v3_0
+   #Log_gcc447_v3_0
    MvUsb3vTL
    #MathParser_gcc447_v3_0
    #NodeMapData_gcc447_v3_0
