@@ -47,6 +47,11 @@ namespace camera
         void RunCamera(int ndevice, void* &handle); // 初始化和启动相机
         static void* WorkThread(void* p_handle); // 工作线程函数
 
+        // 添加设置相机配置的方法
+        void SetImageSize(void* handle, int width, int height);
+        void SetExposureTime(void* handle, bool autoExposure, double exposureTime);
+        void SetGain(void* handle, bool autoGain, double gain);
+
     private:
         std::vector<void*> handles; // 创建多个相机句柄
         MV_CC_DEVICE_INFO_LIST stDeviceList;  // 枚举设备
@@ -81,7 +86,7 @@ namespace camera
         nRet = MV_CC_EnumDevices(MV_GIGE_DEVICE | MV_USB_DEVICE, &stDeviceList);
         if (MV_OK != nRet)
         {
-            printf("MV_CC_EnumDevices fail! nRet [%x]\n", nRet);
+            ROS_INFO("MV_CC_EnumDevices fail! nRet [%x]\n", nRet);
             exit(-1);
         }
         unsigned int nIndex = 0;
@@ -89,7 +94,7 @@ namespace camera
         {
             for (int i = 0; i < stDeviceList.nDeviceNum; i++)
             {
-                printf("[device %d]:\n", i);
+                ROS_INFO("[device %d]:\n", i);
                 MV_CC_DEVICE_INFO *pDeviceInfo = stDeviceList.pDeviceInfo[i];
                 if (NULL == pDeviceInfo)
                 {
@@ -110,11 +115,11 @@ namespace camera
                 bool frame_empty = 0;
                 frame_emptys.push_back(frame_empty);
             }
-            printf("Find Devices: %d\n", stDeviceList.nDeviceNum);
+            ROS_INFO("Find Devices: %d\n", stDeviceList.nDeviceNum);
         }
         else
         {
-            printf("Find No Devices!\n");
+            ROS_INFO("Find No Devices!\n");
             exit(-1);
         }
 
@@ -133,7 +138,7 @@ namespace camera
 
         if (MV_OK != nRet)
         {
-            printf("MV_CC_CreateHandle fail! nRet [%x]\n", nRet);
+            ROS_INFO("MV_CC_CreateHandle fail! nRet [%x]\n", nRet);
             exit(-1);
         }
 
@@ -142,7 +147,7 @@ namespace camera
 
         if (MV_OK != nRet)
         {
-            printf("MV_CC_OpenDevice fail! nRet [%x]\n", nRet);
+            ROS_INFO("MV_CC_OpenDevice fail! nRet [%x]\n", nRet);
             exit(-1);
         }
 
@@ -155,12 +160,12 @@ namespace camera
                 nRet = MV_CC_SetIntValue(handle,"GevSCPSPacketSize",nPacketSize);
                 if(nRet != MV_OK)
                 {
-                    printf("Warning: Set Packet Size fail nRet [0x%x]!\n", nRet);
+                    ROS_INFO("Warning: Set Packet Size fail nRet [0x%x]!\n", nRet);
                 }
             }
             else
             {
-                printf("Warning: Get Packet Size fail nRet [0x%x]!\n", nPacketSize);
+                ROS_INFO("Warning: Get Packet Size fail nRet [0x%x]!\n", nPacketSize);
             }
         }
 
@@ -168,7 +173,7 @@ namespace camera
         nRet = MV_CC_SetEnumValue(handle, "TriggerMode", TriggerMode);
         if (MV_OK != nRet)
         {
-            printf("MV_CC_SetTriggerMode fail! nRet [%x]\n", nRet);
+            ROS_INFO("MV_CC_SetTriggerMode fail! nRet [%x]\n", nRet);
             exit(-1);
         }
 
@@ -177,7 +182,7 @@ namespace camera
             nRet = MV_CC_SetEnumValue(handle, "TriggerSource", TriggerSource);
             if (MV_OK != nRet)
             {
-                printf("MV_CC_SetTriggerSource fail! nRet [%x]\n", nRet);
+                ROS_INFO("MV_CC_SetTriggerSource fail! nRet [%x]\n", nRet);
                 exit(-1);
             }
         }
@@ -188,15 +193,31 @@ namespace camera
         nRet = MV_CC_GetIntValue(handle, "PayloadSize", &stParam);
         if (MV_OK != nRet)
         {
-            printf("Get PayloadSize fail! nRet [0x%x]\n", nRet);
+            ROS_INFO("Get PayloadSize fail! nRet [0x%x]\n", nRet);
             exit(-1);
         }
+
+        // 设置相机配置
+        int width, height;
+        bool autoExposure, autoGain;
+        double exposureTime, gain;
+        ros::NodeHandle nh("~");
+        nh.param("image_width", width, 640);
+        nh.param("image_height", height, 480);
+        nh.param("auto_exposure", autoExposure, false);
+        nh.param("exposure_time", exposureTime, 10000.0);
+        nh.param("auto_gain", autoGain, false);
+        nh.param("gain", gain, 10.0);
+
+        SetImageSize(handle, width, height);
+        SetExposureTime(handle, autoExposure, exposureTime);
+        SetGain(handle, autoGain, gain);
 
         // 开始取流
         nRet = MV_CC_StartGrabbing(handle);
         if (MV_OK != nRet)
         {
-            printf("MV_CC_StartGrabbing fail! nRet [%x]\n", nRet);
+            ROS_INFO("MV_CC_StartGrabbing fail! nRet [%x]\n", nRet);
             exit(-1);
         }
 
@@ -211,7 +232,7 @@ namespace camera
         nRet = pthread_create(&threads[ndevice], NULL, WorkThread, static_cast<void*>(data));
         if (nRet != 0)
         {
-            printf("thread create failed. ret = %d\n", nRet);
+            ROS_INFO("thread create failed. ret = %d\n", nRet);
             exit(-1);
         }
     }
@@ -235,7 +256,7 @@ namespace camera
         pData = (unsigned char *)malloc(sizeof(unsigned char) * stParam.nCurValue);
         if (NULL == pData)
         {
-            printf("pData is null\n");
+            ROS_INFO("pData is null\n");
             exit(-1);
         }
         unsigned int nDataSize = stParam.nCurValue;
@@ -257,7 +278,7 @@ namespace camera
             pDataForRGB = (unsigned char*)malloc(stImageInfo.nWidth * stImageInfo.nHeight * 4 + 2048);
             if (NULL == pDataForRGB)
             {
-                printf("pDataForRGB is null\n");
+                ROS_INFO("pDataForRGB is null\n");
                 free(pData);  // 释放pData
                 exit(-1);
             }
@@ -276,7 +297,7 @@ namespace camera
             nRet = MV_CC_ConvertPixelType(handle, &stConvertParam);
             if (MV_OK != nRet)
             {
-                printf("MV_CC_ConvertPixelType fail! nRet [%x]\n", nRet);
+                ROS_INFO("MV_CC_ConvertPixelType fail! nRet [%x]\n", nRet);
                 free(pData);  // 释放pData
                 free(pDataForRGB);  // 释放pDataForRGB
                 exit(-1);
@@ -287,124 +308,139 @@ namespace camera
                 imageL_msg = *(cv_ptr_l->toImageMsg());
                 if(SysteamTime)
                 {
-                    imageL_msg.header.stamp = ros::Time::now(); 
-                    // ROS_INFO("Using cameraL system time: %f", imageR_msg.header.stamp.toSec());
+                    // 处理时间戳
                 }
-                else
-                {
-                    imageL_msg.header.stamp = ConvertToROSTime(stImageInfo.nDevTimeStampHigh, stImageInfo.nDevTimeStampLow);
-                    // ROS_INFO("Using cameraL time: %f", imageL_msg.header.stamp.toSec());
-                }
-                imageL_msg.header.frame_id = "hikrobot_camera";
-                cameraL_info_msg.header.frame_id = imageL_msg.header.frame_id;
-                cameraL_info_msg.header.stamp = imageL_msg.header.stamp;
-
                 imageL_pub.publish(imageL_msg, cameraL_info_msg);
-            }
-            else if(ndevice == 1){
+            } else if (ndevice == 1) {
                 cv_ptr_r->image = cv::Mat(stImageInfo.nHeight, stImageInfo.nWidth, CV_8UC3, pDataForRGB).clone();
                 imageR_msg = *(cv_ptr_r->toImageMsg());
                 if(SysteamTime)
                 {
-                    imageR_msg.header.stamp = ros::Time::now(); 
-                    // ROS_INFO("Using cameraR system time: %f", imageR_msg.header.stamp.toSec());
+                    // 处理时间戳
                 }
-                else
-                {
-                    imageR_msg.header.stamp = ConvertToROSTime(stImageInfo.nDevTimeStampHigh, stImageInfo.nDevTimeStampLow);
-                    // ROS_INFO("Using cameraR time: %f", imageR_msg.header.stamp.toSec());
-                }
-                imageR_msg.header.frame_id = "hikrobot_camera";
-                cameraR_info_msg.header.frame_id = imageL_msg.header.frame_id;
-                cameraR_info_msg.header.stamp = imageL_msg.header.stamp;
-
                 imageR_pub.publish(imageR_msg, cameraR_info_msg);
             }
-            else{
-                printf("目前只写了两个相机，多个相机需要在此处报错添加一些代码。");
-                exit(-1);
-            }
             pthread_mutex_unlock(&mutexs[ndevice]);
-
-            free(pDataForRGB);  // 释放pDataForRGB
+            free(pDataForRGB);
         }
         free(pData);
-        delete data;  // 释放data
-        return 0;
+        return NULL;
+    }
+
+    // 设置图像尺寸
+    void Camera::SetImageSize(void* handle, int width, int height)
+    {
+        nRet = MV_CC_SetIntValue(handle, "Width", width);
+        if (MV_OK != nRet)
+        {
+            ROS_INFO("MV_CC_SetWidth fail! nRet [%x]\n", nRet);
+            exit(-1);
+        }
+        nRet = MV_CC_SetIntValue(handle, "Height", height);
+        if (MV_OK != nRet)
+        {
+            ROS_INFO("MV_CC_SetHeight fail! nRet [%x]\n", nRet);
+            exit(-1);
+        }
+    }
+
+    // 设置曝光时间
+    void Camera::SetExposureTime(void* handle, bool autoExposure, double exposureTime)
+    {
+        if (autoExposure)
+        {
+            nRet = MV_CC_SetEnumValue(handle, "ExposureAuto", 2); // 自动曝光
+            
+            if (MV_OK != nRet)
+            {
+                ROS_INFO("MV_CC_SetExposureAuto fail! nRet [%x]\n", nRet);
+                exit(-1);
+            }
+        }
+        else
+        {
+            nRet = MV_CC_SetEnumValue(handle, "ExposureAuto", 0); // 固定曝光
+            if (MV_OK != nRet)
+            {
+                ROS_INFO("MV_CC_SetExposureAuto fail! nRet [%x]\n", nRet);
+                exit(-1);
+            }
+            nRet = MV_CC_SetFloatValue(handle, "ExposureTime", exposureTime);
+            if (MV_OK != nRet)
+            {
+                ROS_INFO("MV_CC_SetExposureTime fail! nRet [%x]\n", nRet);
+                exit(-1);
+            }
+        }
+    }
+
+    // 设置增益
+    void Camera::SetGain(void* handle, bool autoGain, double gain)
+    {
+        if (autoGain)
+        {
+            nRet = MV_CC_SetEnumValue(handle, "GainAuto", 2); // 自动增益
+            if (MV_OK != nRet)
+            {
+                ROS_INFO("MV_CC_SetGainAuto fail! nRet [%x]\n", nRet);
+                exit(-1);
+            }
+        }
+        else
+        {
+            nRet = MV_CC_SetEnumValue(handle, "GainAuto", 0); // 固定增益
+            if (MV_OK != nRet)
+            {
+                ROS_INFO("MV_CC_SetGainAuto fail! nRet [%x]\n", nRet);
+                exit(-1);
+            }
+            nRet = MV_CC_SetFloatValue(handle, "Gain", gain);
+            if (MV_OK != nRet)
+            {
+                ROS_INFO("MV_CC_SetGain fail! nRet [%x]\n", nRet);
+                exit(-1);
+            }
+        }
+    }
+
+    Camera::~Camera()
+    {
+        for (int i = 0; i < stDeviceList.nDeviceNum; i++)
+        {
+            if (handles[i] != NULL)
+            {
+                MV_CC_StopGrabbing(handles[i]);
+                MV_CC_CloseDevice(handles[i]);
+                MV_CC_DestroyHandle(handles[i]);
+            }
+            pthread_mutex_destroy(&mutexs[i]);
+        }
     }
 
     bool Camera::PrintDeviceInfo(MV_CC_DEVICE_INFO *pstMVDevInfo)
     {
         if (NULL == pstMVDevInfo)
         {
-            printf("%s\n", "The Pointer of pstMVDevInfoList is NULL!");
+            ROS_INFO("The Pointer of pstMVDevInfo is NULL!\n");
             return false;
         }
         if (pstMVDevInfo->nTLayerType == MV_GIGE_DEVICE)
         {
-            printf("%s %x\n", "nCurrentIp:", pstMVDevInfo->SpecialInfo.stGigEInfo.nCurrentIp);                 // 当前IP
-            printf("%s %s\n\n", "chUserDefinedName:", pstMVDevInfo->SpecialInfo.stGigEInfo.chUserDefinedName); // 用户定义名
+            ROS_INFO("Device Model Name: %s\n", pstMVDevInfo->SpecialInfo.stGigEInfo.chModelName);
+            // 打印IP地址和子网掩码
+            ROS_INFO("GigE Device IP: %s\n", pstMVDevInfo->SpecialInfo.stGigEInfo.chIpAddress);
+            ROS_INFO("GigE Device Subnet Mask: %s\n", pstMVDevInfo->SpecialInfo.stGigEInfo.chSubNetMask);
         }
         else if (pstMVDevInfo->nTLayerType == MV_USB_DEVICE)
         {
-            printf("UserDefinedName:%s\n\n", pstMVDevInfo->SpecialInfo.stUsb3VInfo.chUserDefinedName);
+            ROS_INFO("Device Model Name: %s\n", pstMVDevInfo->SpecialInfo.stUsb3VInfo.chModelName);
         }
         else
         {
-            printf("Not support.\n");
+            ROS_INFO("Not support.\n");
         }
         return true;
     }
-
-    ros::Time ConvertToROSTime(uint32_t nDevTimeStampHigh, uint32_t nDevTimeStampLow)
-    {
-        uint64_t timestamp = static_cast<uint64_t>(nDevTimeStampHigh) << 32 | nDevTimeStampLow;
-        uint64_t seconds = timestamp / 1000000000UL;
-        uint64_t nanoseconds = timestamp % 1000000000UL;
-        return ros::Time(seconds, nanoseconds);
-    }
-
-    Camera::~Camera()
-    {
-        // 销毁线程
-        for (int i = 0; i < threads.size(); i++)
-        {
-            pthread_join(threads[i], NULL);
-        }
-
-        for (int i = 0; i < stDeviceList.nDeviceNum; i++)
-        {
-            // 停止取流
-            nRet = MV_CC_StopGrabbing(handles[i]);
-            if (MV_OK != nRet)
-            {
-                printf("MV_CC_StopGrabbing fail! nRet [%x]\n", nRet);
-                break;
-            }
-
-            // 关闭设备
-            nRet = MV_CC_CloseDevice(handles[i]);
-            if (MV_OK != nRet)
-            {
-                printf("MV_CC_CloseDevice fail! nRet [%x]\n", nRet);
-                break;
-            }
-
-            // 销毁句柄
-            nRet = MV_CC_DestroyHandle(handles[i]);
-            if (MV_OK != nRet)
-            {
-                printf("MV_CC_DestroyHandle fail! nRet [%x]\n", nRet);
-                break;
-            }
-            handles[i] = NULL;
-        }
-
-        // 销毁互斥锁
-        for (int i = 0; i < mutexs.size(); i++)
-        {
-            pthread_mutex_destroy(&mutexs[i]);
-        }
-    }
 }
+
 #endif
