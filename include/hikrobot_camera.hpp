@@ -426,14 +426,12 @@ namespace camera
         }
         if (pstMVDevInfo->nTLayerType == MV_GIGE_DEVICE)
         {
-            ROS_INFO("Device Model Name: %s\n", pstMVDevInfo->SpecialInfo.stGigEInfo.chModelName);
-            // 打印IP地址和子网掩码
-            ROS_INFO("GigE Device IP: %s\n", pstMVDevInfo->SpecialInfo.stGigEInfo.chIpAddress);
-            ROS_INFO("GigE Device Subnet Mask: %s\n", pstMVDevInfo->SpecialInfo.stGigEInfo.chSubNetMask);
+            ROS_INFO("%s %x\n", "nCurrentIp:", pstMVDevInfo->SpecialInfo.stGigEInfo.nCurrentIp);                 //当前IP
+            ROS_INFO("%s %s\n\n", "chUserDefinedName:", pstMVDevInfo->SpecialInfo.stGigEInfo.chUserDefinedName); //用户定义名
         }
         else if (pstMVDevInfo->nTLayerType == MV_USB_DEVICE)
         {
-            ROS_INFO("Device Model Name: %s\n", pstMVDevInfo->SpecialInfo.stUsb3VInfo.chModelName);
+            printf("UserDefinedName:%s\n\n", pstMVDevInfo->SpecialInfo.stUsb3VInfo.chUserDefinedName);
         }
         else
         {
