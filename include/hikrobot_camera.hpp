@@ -355,18 +355,18 @@ namespace camera
         if (autoExposure)
         {
             nRet = MV_CC_SetEnumValue(handle, "ExposureAuto", 2); // 自动曝光
-            int L = MV_CC_SetAutoExposureTimeLower(handle, exposureLower);
-            int U = MV_CC_SetAutoExposureTimeUpper(handle, exposureTime);
             if (MV_OK != nRet)
             {
                 ROS_ERROR("MV_CC_SetExposureAuto fail! nRet [%x]\n", nRet);
                 exit(-1);
             }
+            int L = MV_CC_SetFloatValue(handle, "ExposureTimeAutoLowerLimit", exposureLower);
             if (MV_OK != L)
             {
                 ROS_ERROR("MV_CC_SetAutoExposureTimeLower fail! nRet [%x]\n", nRet);
                 exit(-1);
             }
+            int U = MV_CC_SetFloatValue(handle, "ExposureTimeAutoUpperLimit", exposureTime);
             if (MV_OK != U)
             {
                 ROS_ERROR("MV_CC_SetAutoExposureTimeUpper fail! nRet [%x]\n", nRet);

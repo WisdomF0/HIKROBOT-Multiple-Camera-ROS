@@ -6,6 +6,7 @@ image_height: 1200
 
 auto_exposure: true
 exposure_time: 100000.0
+exposure_lower: 0
 
 auto_gain: false
 gain: 0.0
