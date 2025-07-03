@@ -5,10 +5,11 @@ image_width: 1920
 image_height: 1200
 
 auto_exposure: true
-exposure_time: 100000.0
-exposure_lower: 0
+exposure_time: 200000.0
+exposure_lower: 20.0
 
 auto_gain: false
-gain: 0.0
+gain: 1.0
 
 fps: 10.0
+brightness: 75.0

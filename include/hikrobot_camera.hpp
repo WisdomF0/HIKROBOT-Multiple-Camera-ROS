@@ -69,7 +69,7 @@ namespace camera
         // 相机设置
         int _width, _height;
         bool _autoExposure, _autoGain;
-        double _exposureTime, _exposureLower, _gain, _fps;
+        double _exposureTime, _exposureLower, _gain, _fps, _brightness;
     };
 
     Camera::Camera(ros::NodeHandle &node)
@@ -87,6 +87,7 @@ namespace camera
         node.param("auto_gain", _autoGain, false);
         node.param("gain", _gain, 10.0);
         node.param("fps", _fps, 10.0);
+        node.param("brightness", _brightness, 70.0);
 
         image_transport::ImageTransport main_cam_image(node);
         imageL_pub = main_cam_image.advertiseCamera("/hikrobot_camera_L/image_raw", 1000);
@@ -370,6 +371,12 @@ namespace camera
             if (nRet != MV_OK)
             {
                 ROS_ERROR("MV_CC_SetAutoExposureTimeUpper fail! nRet [%x]\n", nRet);
+                exit(-1);
+            }
+            nRet = MV_CC_SetBrightness(handle, _brightness);
+            if (nRet != MV_OK)
+            {
+                ROS_ERROR("MV_CC_MV_CC_SetBrightness fail! nRet [%x]\n", nRet);
                 exit(-1);
             }
         }
