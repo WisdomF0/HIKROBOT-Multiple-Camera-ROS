@@ -8,6 +8,9 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
   std_msgs
+  sensor_msgs
+  pcl_conversions
+  pcl_ros
   cv_bridge
   image_transport
   camera_info_manager
@@ -18,12 +21,14 @@ catkin_package(
 )
 
 find_package(OpenCV 3.2.0 REQUIRED)
+find_package(PCL 1.7 REQUIRED)
 find_package(Boost REQUIRED COMPONENTS filesystem)
 
 include_directories(
   ${catkin_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
   ${Boost_INCLUDE_DIRS}
+  ${PCL_INCLUDE_DIRS}
   include
   /opt/MVS/include/
 )
@@ -71,4 +76,12 @@ target_link_libraries(hikrobot_images_save
    ${Boost_LIBRARIES}
 
    X11
+)
+
+add_executable(livox_cloud_save src/livox_cloud_save.cpp)
+target_link_libraries(livox_cloud_save
+  ${catkin_LIBRARIES}
+  ${Boost_LIBRARIES}
+  ${PCL_LIBRARIES}
+  X11
 )
