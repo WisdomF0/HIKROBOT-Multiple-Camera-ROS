@@ -2,7 +2,7 @@
 #include "hikrobot_images_saver.hpp"
 
 int main(int argc, char** argv) {
-    ros::init(argc, argv, "hikrobot_save_images");
+    ros::init(argc, argv, "hikrobot_images_save");
     ros::NodeHandle nh;
     ros::NodeHandle nh_private("~");
 
