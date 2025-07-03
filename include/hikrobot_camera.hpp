@@ -357,21 +357,21 @@ namespace camera
             nRet = MV_CC_SetEnumValue(handle, "ExposureAuto", 2); // 自动曝光
             if (MV_OK != nRet)
             {
-                ROS_ERROR("MV_CC_SetExposureAuto fail! nRet [%x]\n", nRet);
+                ROS_ERROR("MV_CC_SetExposureAuto fail! nRet [%x]", nRet);
                 exit(-1);
             }
-            // nRet = MV_CC_SetFloatValue(handle, "ExposureTimeAutoLowerLimit", exposureLower);
-            // if (nRet != MV_OK)
-            // {
-            //     ROS_ERROR("MV_CC_SetAutoExposureTimeLower fail! nRet [%x]\n", nRet);
-            //     exit(-1);
-            // }
-            // nRet = MV_CC_SetFloatValue(handle, "ExposureTimeAutoUpperLimit", exposureTime);
-            // if (nRet != MV_OK)
-            // {
-            //     ROS_ERROR("MV_CC_SetAutoExposureTimeUpper fail! nRet [%x]\n", nRet);
-            //     exit(-1);
-            // }
+            nRet = MV_CC_SetAutoExposureTimeLower(handle, exposureLower);
+            if (nRet != MV_OK)
+            {
+                ROS_ERROR("MV_CC_SetAutoExposureTimeLower fail! nRet [%x]\n", nRet);
+                exit(-1);
+            }
+            nRet = MV_CC_SetAutoExposureTimeUpper(handle, exposureTime);
+            if (nRet != MV_OK)
+            {
+                ROS_ERROR("MV_CC_SetAutoExposureTimeUpper fail! nRet [%x]\n", nRet);
+                exit(-1);
+            }
         }
         else
         {
@@ -456,7 +456,12 @@ namespace camera
         }
         if (pstMVDevInfo->nTLayerType == MV_GIGE_DEVICE)
         {
-            ROS_INFO("%s %x\n", "nCurrentIp:", pstMVDevInfo->SpecialInfo.stGigEInfo.nCurrentIp);                 //当前IP
+            int nIp1 = ((pstMVDevInfo->SpecialInfo.stGigEInfo.nCurrentIp & 0xff000000) >> 24);
+            int nIp2 = ((pstMVDevInfo->SpecialInfo.stGigEInfo.nCurrentIp & 0x00ff0000) >> 16);
+            int nIp3 = ((pstMVDevInfo->SpecialInfo.stGigEInfo.nCurrentIp & 0x0000ff00) >> 8);
+            int nIp4 = (pstMVDevInfo->SpecialInfo.stGigEInfo.nCurrentIp & 0x000000ff);
+
+            ROS_INFO("CurrentIp: %d.%d.%d.%d", nIp1, nIp2, nIp3, nIp4);                 //当前IP
             ROS_INFO("%s %s\n\n", "chUserDefinedName:", pstMVDevInfo->SpecialInfo.stGigEInfo.chUserDefinedName); //用户定义名
         }
         else if (pstMVDevInfo->nTLayerType == MV_USB_DEVICE)
