@@ -92,7 +92,7 @@ public:
     
     void savePcd() {
         std::lock_guard<std::mutex> lock(cloud_mutex_);
-        
+
         if (!cloud_.empty()) {
             // 创建带时间戳的文件名
             std::string timestamp = std::to_string(ros::Time::now().toSec());
@@ -134,10 +134,6 @@ public:
             loop_rate.sleep();
         }
     }
-    
-private:
-    std::string lidar_topic_;
-    std::string save_topic_;
 };
 
 #endif // LIVOX_CLOUD_SAVER_HPP
