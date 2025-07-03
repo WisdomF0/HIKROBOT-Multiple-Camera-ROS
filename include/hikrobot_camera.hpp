@@ -360,18 +360,18 @@ namespace camera
                 ROS_ERROR("MV_CC_SetExposureAuto fail! nRet [%x]\n", nRet);
                 exit(-1);
             }
-            nRet = MV_CC_SetFloatValue(handle, "ExposureTimeAutoLowerLimit", exposureLower);
-            if (nRet != MV_OK)
-            {
-                ROS_ERROR("MV_CC_SetAutoExposureTimeLower fail! nRet [%x]\n", nRet);
-                exit(-1);
-            }
-            nRet = MV_CC_SetFloatValue(handle, "ExposureTimeAutoUpperLimit", exposureTime);
-            if (nRet != MV_OK)
-            {
-                ROS_ERROR("MV_CC_SetAutoExposureTimeUpper fail! nRet [%x]\n", nRet);
-                exit(-1);
-            }
+            // nRet = MV_CC_SetFloatValue(handle, "ExposureTimeAutoLowerLimit", exposureLower);
+            // if (nRet != MV_OK)
+            // {
+            //     ROS_ERROR("MV_CC_SetAutoExposureTimeLower fail! nRet [%x]\n", nRet);
+            //     exit(-1);
+            // }
+            // nRet = MV_CC_SetFloatValue(handle, "ExposureTimeAutoUpperLimit", exposureTime);
+            // if (nRet != MV_OK)
+            // {
+            //     ROS_ERROR("MV_CC_SetAutoExposureTimeUpper fail! nRet [%x]\n", nRet);
+            //     exit(-1);
+            // }
         }
         else
         {
