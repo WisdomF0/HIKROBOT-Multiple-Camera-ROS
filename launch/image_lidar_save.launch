@@ -1,7 +1,12 @@
 <launch>
-    <!-- 图像保存节点 -->
+<!-- 图像保存节点 -->
     <node pkg="hikrobot_camera" type="hikrobot_images_save" name="hikrobot_images_save" output="screen">
         <rosparam file="$(find hikrobot_camera)/config/save_image.yaml" command="load"/>
+        <param name="save_path" value="/home/dji/output" />
+    </node>
+    <!-- 点云保存节点 -->
+    <node pkg="hikrobot_camera" type="livox_cloud_save" name="livox_cloud_save" output="screen">
+        <rosparam file="$(find hikrobot_camera)/config/save_lidar.yaml" command="load"/>
         <param name="save_path" value="/home/dji/output" />
     </node>
 
