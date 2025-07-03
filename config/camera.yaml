@@ -4,8 +4,10 @@ SysteamTime: false
 image_width: 1920
 image_height: 1200
 
-auto_exposure: false
-exposure_time: 10000.0
+auto_exposure: true
+exposure_time: 100000.0
 
 auto_gain: false
 gain: 0.0
+
+fps: 10.0

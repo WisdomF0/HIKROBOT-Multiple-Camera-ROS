@@ -1,0 +1,6 @@
+# config/save_image.yaml
+save_path: "/data/images"  # 保存图像的目录
+left_topic: "/hikrobot_camera_L/image_raw"  # 左相机话题
+right_topic: "/hikrobot_camera_R/image_raw"  # 右相机话题
+save_signal_topic: "/save_image"  # 保存信号话题
+loop_rate: 10.0  # 循环频率 (Hz)

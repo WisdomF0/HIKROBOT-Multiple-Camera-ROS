@@ -18,10 +18,12 @@ catkin_package(
 )
 
 find_package(OpenCV 3.2.0 REQUIRED)
+find_package(Boost REQUIRED COMPONENTS filesystem)
 
 include_directories(
   ${catkin_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
+  ${Boost_INCLUDE_DIRS}
   include
   /opt/MVS/include/
 )
@@ -50,3 +52,23 @@ src/hikrobot_camera.cpp)
    #XmlParser_gcc447_v3_0
    X11
  )
+
+add_executable(keyboard_listener 
+  src/keyboard_listener.cpp
+)
+target_link_libraries(keyboard_listener
+   ${catkin_LIBRARIES}
+   
+   X11
+)
+ 
+add_executable(hikrobot_images_save
+  src/hikrobot_images_save.cpp 
+)
+target_link_libraries(hikrobot_images_save
+   ${catkin_LIBRARIES}
+   ${OpenCV_LIBRARIES}
+   ${Boost_LIBRARIES}
+
+   X11
+)

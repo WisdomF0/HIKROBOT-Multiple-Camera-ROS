@@ -48,8 +48,10 @@ namespace camera
         static void* WorkThread(void* p_handle); // 工作线程函数
 
         // 添加设置相机配置的方法
+        // void PrintCameraSetting(void* handle);
+        void SetFPS(void* handle, double fps);
         void SetImageSize(void* handle, int width, int height);
-        void SetExposureTime(void* handle, bool autoExposure, double exposureTime);
+        void SetExposureTime(void* handle, bool autoExposure, double exposureTime, double exposureLower);
         void SetGain(void* handle, bool autoGain, double gain);
 
     private:
@@ -63,6 +65,11 @@ namespace camera
         // MV_TRIGGER_SOURCE_LINE3 = 3,MV_TRIGGER_SOURCE_COUNTER0 = 4,MV_TRIGGER_SOURCE_SOFTWARE = 7,
         // MV_TRIGGER_SOURCE_FrequencyConverter = 8
         int TriggerSource;
+
+        // 相机设置
+        int _width, _height;
+        bool _autoExposure, _autoGain;
+        double _exposureTime, _exposureLower, _gain, _fps;
     };
 
     Camera::Camera(ros::NodeHandle &node)
@@ -71,6 +78,15 @@ namespace camera
         node.param("TriggerMode", TriggerMode, 0);    //0为不启用触发，1为启用
         node.param("TriggerSource", TriggerSource, 0);  //设置触发模式
         node.param("SysteamTime", SysteamTime, false);
+
+        node.param("image_width", _width, 640);
+        node.param("image_height", _height, 480);
+        node.param("auto_exposure", _autoExposure, false);
+        node.param("exposure_time", _exposureTime, 10000.0);
+        node.param("exposure_lower", _exposureLower, 0.0);
+        node.param("auto_gain", _autoGain, false);
+        node.param("gain", _gain, 10.0);
+        node.param("fps", _fps, 10.0);
 
         image_transport::ImageTransport main_cam_image(node);
         imageL_pub = main_cam_image.advertiseCamera("/hikrobot_camera_L/image_raw", 1000);
@@ -86,7 +102,7 @@ namespace camera
         nRet = MV_CC_EnumDevices(MV_GIGE_DEVICE | MV_USB_DEVICE, &stDeviceList);
         if (MV_OK != nRet)
         {
-            ROS_INFO("MV_CC_EnumDevices fail! nRet [%x]\n", nRet);
+            ROS_ERROR("MV_CC_EnumDevices fail! nRet [%x]\n", nRet);
             exit(-1);
         }
         unsigned int nIndex = 0;
@@ -119,13 +135,14 @@ namespace camera
         }
         else
         {
-            ROS_INFO("Find No Devices!\n");
+            ROS_ERROR("Find No Devices!\n");
             exit(-1);
         }
 
         // 选择设备初始设置并取流
         for (int i = 0; i < stDeviceList.nDeviceNum; i++)
         {
+            ROS_INFO("Run Device: %d\n", i);
             RunCamera(i, handles[i]);
         }
     }
@@ -138,7 +155,7 @@ namespace camera
 
         if (MV_OK != nRet)
         {
-            ROS_INFO("MV_CC_CreateHandle fail! nRet [%x]\n", nRet);
+            ROS_ERROR("MV_CC_CreateHandle fail! nRet [%x]\n", nRet);
             exit(-1);
         }
 
@@ -147,7 +164,7 @@ namespace camera
 
         if (MV_OK != nRet)
         {
-            ROS_INFO("MV_CC_OpenDevice fail! nRet [%x]\n", nRet);
+            ROS_ERROR("MV_CC_OpenDevice fail! nRet [%x]\n", nRet);
             exit(-1);
         }
 
@@ -160,12 +177,12 @@ namespace camera
                 nRet = MV_CC_SetIntValue(handle,"GevSCPSPacketSize",nPacketSize);
                 if(nRet != MV_OK)
                 {
-                    ROS_INFO("Warning: Set Packet Size fail nRet [0x%x]!\n", nRet);
+                    ROS_ERROR("Warning: Set Packet Size fail nRet [0x%x]!\n", nRet);
                 }
             }
             else
             {
-                ROS_INFO("Warning: Get Packet Size fail nRet [0x%x]!\n", nPacketSize);
+                ROS_WARN("Warning: Get Packet Size fail nRet [0x%x]!\n", nPacketSize);
             }
         }
 
@@ -182,7 +199,7 @@ namespace camera
             nRet = MV_CC_SetEnumValue(handle, "TriggerSource", TriggerSource);
             if (MV_OK != nRet)
             {
-                ROS_INFO("MV_CC_SetTriggerSource fail! nRet [%x]\n", nRet);
+                ROS_ERROR("MV_CC_SetTriggerSource fail! nRet [%x]\n", nRet);
                 exit(-1);
             }
         }
@@ -193,31 +210,19 @@ namespace camera
         nRet = MV_CC_GetIntValue(handle, "PayloadSize", &stParam);
         if (MV_OK != nRet)
         {
-            ROS_INFO("Get PayloadSize fail! nRet [0x%x]\n", nRet);
+            ROS_ERROR("Get PayloadSize fail! nRet [0x%x]\n", nRet);
             exit(-1);
         }
 
-        // 设置相机配置
-        int width, height;
-        bool autoExposure, autoGain;
-        double exposureTime, gain;
-        ros::NodeHandle nh("~");
-        nh.param("image_width", width, 640);
-        nh.param("image_height", height, 480);
-        nh.param("auto_exposure", autoExposure, false);
-        nh.param("exposure_time", exposureTime, 10000.0);
-        nh.param("auto_gain", autoGain, false);
-        nh.param("gain", gain, 10.0);
-
-        SetImageSize(handle, width, height);
-        SetExposureTime(handle, autoExposure, exposureTime);
-        SetGain(handle, autoGain, gain);
+        SetImageSize(handle, _width, _height);
+        SetExposureTime(handle, _autoExposure, _exposureTime, _exposureLower);
+        SetGain(handle, _autoGain, _gain);
 
         // 开始取流
         nRet = MV_CC_StartGrabbing(handle);
         if (MV_OK != nRet)
         {
-            ROS_INFO("MV_CC_StartGrabbing fail! nRet [%x]\n", nRet);
+            ROS_ERROR("MV_CC_StartGrabbing fail! nRet [%x]\n", nRet);
             exit(-1);
         }
 
@@ -232,7 +237,7 @@ namespace camera
         nRet = pthread_create(&threads[ndevice], NULL, WorkThread, static_cast<void*>(data));
         if (nRet != 0)
         {
-            ROS_INFO("thread create failed. ret = %d\n", nRet);
+            ROS_ERROR("thread create failed. ret = %d\n", nRet);
             exit(-1);
         }
     }
@@ -256,7 +261,7 @@ namespace camera
         pData = (unsigned char *)malloc(sizeof(unsigned char) * stParam.nCurValue);
         if (NULL == pData)
         {
-            ROS_INFO("pData is null\n");
+            ROS_ERROR("pData is null\n");
             exit(-1);
         }
         unsigned int nDataSize = stParam.nCurValue;
@@ -268,7 +273,7 @@ namespace camera
             {
                 if (++image_empty_count > 100)
                 {
-                    ROS_INFO("The Number of Faild Reading Exceed The Set Value!\n");
+                    ROS_ERROR("The Number of Faild Reading Exceed The Set Value!\n");
                     exit(-1);
                 }
                 continue;
@@ -278,7 +283,7 @@ namespace camera
             pDataForRGB = (unsigned char*)malloc(stImageInfo.nWidth * stImageInfo.nHeight * 4 + 2048);
             if (NULL == pDataForRGB)
             {
-                ROS_INFO("pDataForRGB is null\n");
+                ROS_ERROR("pDataForRGB is null\n");
                 free(pData);  // 释放pData
                 exit(-1);
             }
@@ -297,7 +302,7 @@ namespace camera
             nRet = MV_CC_ConvertPixelType(handle, &stConvertParam);
             if (MV_OK != nRet)
             {
-                ROS_INFO("MV_CC_ConvertPixelType fail! nRet [%x]\n", nRet);
+                ROS_ERROR("MV_CC_ConvertPixelType fail! nRet [%x]\n", nRet);
                 free(pData);  // 释放pData
                 free(pDataForRGB);  // 释放pDataForRGB
                 exit(-1);
@@ -333,27 +338,38 @@ namespace camera
         nRet = MV_CC_SetIntValue(handle, "Width", width);
         if (MV_OK != nRet)
         {
-            ROS_INFO("MV_CC_SetWidth fail! nRet [%x]\n", nRet);
+            ROS_ERROR("MV_CC_SetWidth fail! nRet [%x]\n", nRet);
             exit(-1);
         }
         nRet = MV_CC_SetIntValue(handle, "Height", height);
         if (MV_OK != nRet)
         {
-            ROS_INFO("MV_CC_SetHeight fail! nRet [%x]\n", nRet);
+            ROS_ERROR("MV_CC_SetHeight fail! nRet [%x]\n", nRet);
             exit(-1);
         }
     }
 
     // 设置曝光时间
-    void Camera::SetExposureTime(void* handle, bool autoExposure, double exposureTime)
+    void Camera::SetExposureTime(void* handle, bool autoExposure, double exposureTime, double exposureLower)
     {
         if (autoExposure)
         {
             nRet = MV_CC_SetEnumValue(handle, "ExposureAuto", 2); // 自动曝光
-            
+            int L = MV_CC_SetAutoExposureTimeLower(handle, exposureLower);
+            int U = MV_CC_SetAutoExposureTimeUpper(handle, exposureTime);
             if (MV_OK != nRet)
             {
-                ROS_INFO("MV_CC_SetExposureAuto fail! nRet [%x]\n", nRet);
+                ROS_ERROR("MV_CC_SetExposureAuto fail! nRet [%x]\n", nRet);
+                exit(-1);
+            }
+            if (MV_OK != L)
+            {
+                ROS_ERROR("MV_CC_SetAutoExposureTimeLower fail! nRet [%x]\n", nRet);
+                exit(-1);
+            }
+            if (MV_OK != U)
+            {
+                ROS_ERROR("MV_CC_SetAutoExposureTimeUpper fail! nRet [%x]\n", nRet);
                 exit(-1);
             }
         }
@@ -362,13 +378,13 @@ namespace camera
             nRet = MV_CC_SetEnumValue(handle, "ExposureAuto", 0); // 固定曝光
             if (MV_OK != nRet)
             {
-                ROS_INFO("MV_CC_SetExposureAuto fail! nRet [%x]\n", nRet);
+                ROS_ERROR("MV_CC_SetExposureAuto fail! nRet [%x]\n", nRet);
                 exit(-1);
             }
             nRet = MV_CC_SetFloatValue(handle, "ExposureTime", exposureTime);
             if (MV_OK != nRet)
             {
-                ROS_INFO("MV_CC_SetExposureTime fail! nRet [%x]\n", nRet);
+                ROS_ERROR("MV_CC_SetExposureTime fail! nRet [%x]\n", nRet);
                 exit(-1);
             }
         }
@@ -382,7 +398,7 @@ namespace camera
             nRet = MV_CC_SetEnumValue(handle, "GainAuto", 2); // 自动增益
             if (MV_OK != nRet)
             {
-                ROS_INFO("MV_CC_SetGainAuto fail! nRet [%x]\n", nRet);
+                ROS_ERROR("MV_CC_SetGainAuto fail! nRet [%x]\n", nRet);
                 exit(-1);
             }
         }
@@ -391,15 +407,29 @@ namespace camera
             nRet = MV_CC_SetEnumValue(handle, "GainAuto", 0); // 固定增益
             if (MV_OK != nRet)
             {
-                ROS_INFO("MV_CC_SetGainAuto fail! nRet [%x]\n", nRet);
+                ROS_ERROR("MV_CC_SetGainAuto fail! nRet [%x]\n", nRet);
                 exit(-1);
             }
             nRet = MV_CC_SetFloatValue(handle, "Gain", gain);
             if (MV_OK != nRet)
             {
-                ROS_INFO("MV_CC_SetGain fail! nRet [%x]\n", nRet);
+                ROS_ERROR("MV_CC_SetGain fail! nRet [%x]\n", nRet);
                 exit(-1);
             }
+        }
+    }
+
+    void Camera::SetFPS(void* handle, double fps)
+    {
+        nRet = MV_CC_SetBoolValue(handle, "AcquisitionFrameRateEnable", true);
+        if (nRet != MV_OK)
+        {
+            ROS_ERROR("Failed to enable frame rate control! Error: 0x%x", nRet);
+        }
+        nRet = MV_CC_SetFloatValue(handle, "AcquisitionFrameRate", fps);
+        if (nRet != MV_OK)
+        {
+            ROS_ERROR("Failed to set frame rate! Error: 0x%x", nRet);
         }
     }
 
