@@ -3,7 +3,7 @@
   <name>hikrobot_camera</name>
   <version>0.0.0</version>
   <description>The hikrobot_camera package</description>
-  <maintainer email="savoki1024@gmail.com">zyw</maintainer>
+  <maintainer email="yaohuiff@gmail.com">fyh</maintainer>
   <license>TODO</license>
   <!-- The buildtool_depend -->
   <buildtool_depend>catkin</buildtool_depend>
