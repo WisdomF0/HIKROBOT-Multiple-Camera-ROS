@@ -1,13 +1,12 @@
 <launch>
-    <rosparam file="$(find hikrobot_camera)/config/save_image.yaml" command="load" />
-    <!-- 按键监听节点 -->
+    <!-- 图像保存节点 -->
+    <node pkg="hikrobot_camera" type="hikrobot_images_save" name="hikrobot_images_save" output="screen">
+        <rosparam file="$(find hikrobot_camera)/config/save_image.yaml" command="load" ns="~"/>
+    </node>
+
+     <!-- 按键监听节点 -->
     <node pkg="hikrobot_camera" type="keyboard_listener" name="keyboard_listener" output="screen">
         <!-- 可选的参数，例如监听的按键 -->
         <param name="key_to_save" value="s"/>
-    </node>
-
-    <!-- 图像保存节点 -->
-    <node pkg="hikrobot_camera" type="hikrobot_images_save" name="hikrobot_images_save" output="screen">
-        
     </node>
 </launch>
