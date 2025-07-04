@@ -37,6 +37,23 @@ namespace camera
         MVCC_INTVALUE stParam;
     };
 
+    // 计算图像锐利度的函数
+    double calculateImageSharpness(const cv::Mat& image, const cv::Rect& roi) {
+        cv::Mat gray;
+        if (image.channels() == 3) {
+            cv::cvtColor(image, gray, cv::COLOR_BGR2GRAY);
+        } else {
+            gray = image.clone();
+        }
+        cv::Mat roiImage = gray(roi);
+        cv::Mat laplacian;
+        cv::Laplacian(roiImage, laplacian, CV_64F);
+        cv::Scalar mean, stddev;
+        cv::meanStdDev(laplacian, mean, stddev);
+        double variance = stddev.val[0] * stddev.val[0];
+        return variance;
+    }
+
     class Camera
     {
     public:
@@ -70,6 +87,11 @@ namespace camera
         int _width, _height;
         bool _autoExposure, _autoGain;
         double _exposureTime, _exposureLower, _gain, _fps, _brightness;
+
+        // 其他设置
+        int roi_x, roi_y, roi_w, roi_h;
+        bool FocusMode;
+        cv::Rect roi;
     };
 
     Camera::Camera(ros::NodeHandle &node)
@@ -88,6 +110,16 @@ namespace camera
         node.param("gain", _gain, 10.0);
         node.param("fps", _fps, 10.0);
         node.param("brightness", _brightness, 70.0);
+
+        node.param("roi_x", roi_x, 480);
+        node.param("roi_y", roi_y, 300);
+        node.param("roi_w", roi_w, 960);
+        node.param("roi_h", roi_h, 600);
+        node.param("FocusMode", FocusMode, false);
+        roi = cv::Rect(roi_x, roi_y, roi_w, roi_h);
+        if (FocusMode) {
+            ROS_INFO("FocusMode roi:%d, %d, %d, %d", roi_x, roi_y, roi_w, roi_h);
+        }
 
         image_transport::ImageTransport main_cam_image(node);
         imageL_pub = main_cam_image.advertiseCamera("/hikrobot_camera_L/image_raw", 1000);
@@ -311,6 +343,16 @@ namespace camera
             pthread_mutex_lock(&mutexs[ndevice]);
             if(ndevice == 0){
                 cv_ptr_l->image = cv::Mat(stImageInfo.nHeight, stImageInfo.nWidth, CV_8UC3, pDataForRGB).clone();
+                
+                if (FocusMode) {
+                    double sharpness = calculateImageSharpness(cv_ptr_l->image, roi);
+                    ROS_INFO("Camera %d Sharpness: %.2f", ndevice, sharpness);
+                    std::stringstream ss;
+                    ss << "Sharpness: " << std::fixed << std::setprecision(2) << sharpness;
+                    cv::putText(cv_ptr_l->image, ss.str(), cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
+                    cv::rectangle(cv_ptr_l->image, roi, cv::Scalar(0, 0, 255), 2);
+                }
+
                 imageL_msg = *(cv_ptr_l->toImageMsg());
                 if(SysteamTime)
                 {
@@ -319,6 +361,16 @@ namespace camera
                 imageL_pub.publish(imageL_msg, cameraL_info_msg);
             } else if (ndevice == 1) {
                 cv_ptr_r->image = cv::Mat(stImageInfo.nHeight, stImageInfo.nWidth, CV_8UC3, pDataForRGB).clone();
+
+                if (FocusMode) {
+                    double sharpness = calculateImageSharpness(cv_ptr_r->image, roi);
+                    ROS_INFO("Camera %d Sharpness: %.2f", ndevice, sharpness);
+                    std::stringstream ss;
+                    ss << "Sharpness: " << std::fixed << std::setprecision(2) << sharpness;
+                    cv::putText(cv_ptr_r->image, ss.str(), cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
+                    cv::rectangle(cv_ptr_r->image, roi, cv::Scalar(0, 0, 255), 2);
+                }
+
                 imageR_msg = *(cv_ptr_r->toImageMsg());
                 if(SysteamTime)
                 {
