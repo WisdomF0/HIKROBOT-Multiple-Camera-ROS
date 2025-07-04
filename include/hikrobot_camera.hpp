@@ -29,6 +29,11 @@ namespace camera
     cv_bridge::CvImagePtr cv_ptr_l;
     cv_bridge::CvImagePtr cv_ptr_r;
 
+    // 其他设置
+    int roi_x, roi_y, roi_w, roi_h;
+    bool FocusMode;
+    cv::Rect roi;
+
     ros::Time ConvertToROSTime(uint32_t nDevTimeStampHigh, uint32_t nDevTimeStampLow);
 
     struct ThreadData {
@@ -87,11 +92,6 @@ namespace camera
         int _width, _height;
         bool _autoExposure, _autoGain;
         double _exposureTime, _exposureLower, _gain, _fps, _brightness;
-
-        // 其他设置
-        int roi_x, roi_y, roi_w, roi_h;
-        bool FocusMode;
-        cv::Rect roi;
     };
 
     Camera::Camera(ros::NodeHandle &node)
