@@ -29,6 +29,7 @@ private:
     std::string lidar_topic_;  // 提前声明成员变量
     std::string save_topic_;   // 提前声明成员变量
 
+    std::string timestamp;
     
 public:
     LivoxPointCloudSaver(ros::NodeHandle& nh) : nh_(nh), nh_private_("~") {
@@ -65,6 +66,7 @@ public:
         
         // 如果接收到保存信号且未在收集，则重置计数器并开始收集
         if (save_flag_ && !collecting_) {
+            timestamp = std::to_string(ros::Time::now().toSec());
             cloud_.clear();
             msg_count_ = 0;
             collecting_ = true;
@@ -95,7 +97,6 @@ public:
 
         if (!cloud_.empty()) {
             // 创建带时间戳的文件名
-            std::string timestamp = std::to_string(ros::Time::now().toSec());
             std::string pcd_path = save_path_ + "/" + timestamp + ".pcd";
 
             // 检查并创建保存目录

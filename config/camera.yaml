@@ -13,3 +13,5 @@ gain: 1.0
 
 fps: 10.0
 brightness: 75.0
+
+FoucusMode: false
