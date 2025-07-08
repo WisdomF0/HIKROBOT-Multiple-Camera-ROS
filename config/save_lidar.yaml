@@ -2,3 +2,5 @@ lidar_topic: "/livox/lidar"
 save_topic: "/save_image"
 msg_num: 10
 save_path: "/home/dji/output"
+
+use_time_mode: false
