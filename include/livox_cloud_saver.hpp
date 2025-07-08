@@ -48,13 +48,13 @@ public:
                 ROS_WARN("Invalid record duration: %d, setting to 5", msg_num_);
                 msg_num_ = 5;
             }
-            ROS_INFO("时间模式: 将录制 %d 秒的点云数据", msg_num_);
+            ROS_INFO("Time mode: Will record %d seconds of point cloud data", msg_num_);
         } else {
             if (msg_num_ <= 0) {
                 ROS_WARN("Invalid frame count: %d, setting to 10", msg_num_);
                 msg_num_ = 10;
             }
-            ROS_INFO("帧数模式: 将录制 %d 帧点云数据", msg_num_);
+            ROS_INFO("Frame mode: Will record %d frames of point cloud data", msg_num_);
         }
         
         // 输出参数信息
@@ -86,9 +86,9 @@ public:
             collecting_ = true;
 
             if (use_time_mode_) {
-                ROS_INFO("开始录制点云数据，目标时长: %d 秒", msg_num_);
+                ROS_INFO("Starting point cloud recording, target duration: %d seconds", msg_num_);
             } else {
-                ROS_INFO("开始收集点云数据，目标帧数: %d", msg_num_);
+                ROS_INFO("Starting point cloud collection, target frames: %d", msg_num_);
             }
         }
     }
@@ -119,18 +119,18 @@ public:
             bool is_last_frame = (remaining <= 0.1);  // 接近结束时强制显示
             
             if (is_full_second || is_last_frame) {
-                ROS_INFO("时间模式: 已录制 %d/%d 秒，收集 %d 帧", elapsed_seconds, msg_num_, msg_count_);
+                ROS_INFO("Time mode: Recorded %d/%d seconds, collected %d frames", elapsed_seconds, msg_num_, msg_count_);
             }
             
             should_stop = (elapsed >= msg_num_);
         } else {
-            ROS_INFO("已收集 %d/%d 帧点云", msg_count_, msg_num_);
+            ROS_INFO("Collected %d/%d point cloud frames", msg_count_, msg_num_);
             should_stop = (msg_count_ >= msg_num_);
         }
         
         if (should_stop) {
             collecting_ = false;
-            ROS_INFO("录制完成，等待保存...");
+            ROS_INFO("Recording completed, waiting to save...");
         }
     }
     
@@ -145,27 +145,27 @@ public:
             try {
                 if (!boost::filesystem::exists(save_path_)) {
                     boost::filesystem::create_directories(save_path_);
-                    ROS_INFO("创建保存目录: %s", save_path_.c_str());
+                    ROS_INFO("Created save directory: %s", save_path_.c_str());
                 }
             } catch (const boost::filesystem::filesystem_error& e) {
-                ROS_ERROR("创建目录失败: %s", e.what());
+                ROS_ERROR("Failed to create directory: %s", e.what());
                 return;
             }
 
             // 保存点云
             if (pcl::io::savePCDFileBinary(pcd_path, cloud_) == 0) {
                 if (use_time_mode_) {
-                    ROS_INFO("时间模式: 点云已保存至 %s, 时长: %d 秒, 帧数: %d, 点数: %zu", 
+                    ROS_INFO("Time mode: Point cloud saved to %s, duration: %d seconds, frames: %d, points: %zu", 
                              pcd_path.c_str(), msg_num_, msg_count_, cloud_.size());
                 } else {
-                    ROS_INFO("帧数模式: 点云已保存至 %s, 帧数: %d, 点数: %zu", 
+                    ROS_INFO("Frame mode: Point cloud saved to %s, frames: %d, points: %zu", 
                              pcd_path.c_str(), msg_count_, cloud_.size());
                 }
             } else {
-                ROS_ERROR("保存点云失败: %s", pcd_path.c_str());
+                ROS_ERROR("Failed to save point cloud: %s", pcd_path.c_str());
             }
         } else {
-            ROS_WARN("点云为空，无法保存");
+            ROS_WARN("Point cloud is empty, nothing to save");
         }
     }
     
