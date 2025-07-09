@@ -153,7 +153,7 @@ public:
             }
 
             // 保存点云
-            if (pcl::io::savePCDFileBinary(pcd_path, cloud_) == 0) {
+            if (pcl::io::savePCDFileASCII(pcd_path, cloud_) == 0) {
                 if (use_time_mode_) {
                     ROS_INFO("Time mode: Point cloud saved to %s, duration: %d seconds, frames: %d, points: %zu", 
                              pcd_path.c_str(), msg_num_, msg_count_, cloud_.size());
