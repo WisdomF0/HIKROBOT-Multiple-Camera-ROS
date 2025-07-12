@@ -14,6 +14,10 @@
 
 namespace camera
 {
+    #define NOMOAL_MODE 0
+    #define FOCUS_MODE 1
+    #define EXPOSURE_MODE 2
+
     std::vector<cv::Mat> frames;
     std::vector<bool> frame_emptys;
     std::vector<pthread_mutex_t> mutexs;
@@ -31,8 +35,9 @@ namespace camera
 
     // 其他设置
     int roi_x, roi_y, roi_w, roi_h;
-    bool FocusMode;
+    int DriverMode;
     cv::Rect roi;
+    double adjustExposureTarget;
 
     ros::Time ConvertToROSTime(uint32_t nDevTimeStampHigh, uint32_t nDevTimeStampLow);
 
@@ -40,6 +45,15 @@ namespace camera
         int ndevice;
         void* handle;
         MVCC_INTVALUE stParam;
+    };
+
+    // 相机配置结构体
+    struct CameraConfig {
+        int TriggerMode;
+        int TriggerSource;
+        int width, height;
+        bool autoExposure, autoGain;
+        double exposureTime, exposureLower, gain, fps, brightness;
     };
 
     // 计算图像锐利度的函数
@@ -73,13 +87,18 @@ namespace camera
         // void PrintCameraSetting(void* handle);
         void SetFPS(void* handle, double fps);
         void SetImageSize(void* handle, int width, int height);
-        void SetExposureTime(void* handle, bool autoExposure, double exposureTime, double exposureLower);
+        void SetExposureTime(void* handle, bool autoExposure, double exposureTime, double exposureLower, int brightness);
         void SetGain(void* handle, bool autoGain, double gain);
+
+        double CalculateAverageGray(const cv::Mat& image, bool isLeft);
+        void AdjustExposureTime(void* handle, double currentGray, double targetGray);
+        void AdjustExposure(int);
 
     private:
         std::vector<void*> handles; // 创建多个相机句柄
         MV_CC_DEVICE_INFO_LIST stDeviceList;  // 枚举设备
         std::vector<pthread_t> threads; // 存储线程ID
+        std::vector<CameraConfig> cameraConfigs; // 每个相机的配置
 
         int nRet;
         int TriggerMode;
@@ -87,11 +106,8 @@ namespace camera
         // MV_TRIGGER_SOURCE_LINE3 = 3,MV_TRIGGER_SOURCE_COUNTER0 = 4,MV_TRIGGER_SOURCE_SOFTWARE = 7,
         // MV_TRIGGER_SOURCE_FrequencyConverter = 8
         int TriggerSource;
-
-        // 相机设置
-        int _width, _height;
-        bool _autoExposure, _autoGain;
-        double _exposureTime, _exposureLower, _gain, _fps, _brightness;
+        bool IsUpdateExposure;
+        int TargetExposure;
     };
 
     Camera::Camera(ros::NodeHandle &node)
@@ -101,25 +117,17 @@ namespace camera
         node.param("TriggerSource", TriggerSource, 0);  //设置触发模式
         node.param("SysteamTime", SysteamTime, false);
 
-        node.param("image_width", _width, 640);
-        node.param("image_height", _height, 480);
-        node.param("auto_exposure", _autoExposure, false);
-        node.param("exposure_time", _exposureTime, 10000.0);
-        node.param("exposure_lower", _exposureLower, 0.0);
-        node.param("auto_gain", _autoGain, false);
-        node.param("gain", _gain, 10.0);
-        node.param("fps", _fps, 10.0);
-        node.param("brightness", _brightness, 70.0);
-
         node.param("roi_x", roi_x, 480);
         node.param("roi_y", roi_y, 300);
         node.param("roi_w", roi_w, 960);
         node.param("roi_h", roi_h, 600);
-        node.param("FocusMode", FocusMode, false);
+        node.param("DriverMode", DriverMode, 0);
         roi = cv::Rect(roi_x, roi_y, roi_w, roi_h);
-        if (FocusMode) {
+        if (DriverMode == FOCUS_MODE) {
             ROS_INFO("FocusMode roi:%d, %d, %d, %d", roi_x, roi_y, roi_w, roi_h);
         }
+
+        node.param("adjustExposureTarget", adjustExposureTarget, 128);
 
         image_transport::ImageTransport main_cam_image(node);
         imageL_pub = main_cam_image.advertiseCamera("/hikrobot_camera_L/image_raw", 1000);
@@ -138,6 +146,34 @@ namespace camera
             ROS_ERROR("MV_CC_EnumDevices fail! nRet [%x]\n", nRet);
             exit(-1);
         }
+
+        // 读取每个相机的配置
+        for (int i = 0; i < stDeviceList.nDeviceNum; i++)
+        {
+            CameraConfig config;
+            std::stringstream ns;
+            ns << "camera" << i << "/";
+            
+            // 读取相机i的参数
+            node.param(ns.str() + "image_width", config.width, 640);
+            node.param(ns.str() + "image_height", config.height, 480);
+            node.param(ns.str() + "auto_exposure", config.autoExposure, false);
+            node.param(ns.str() + "exposure_time", config.exposureTime, 10000.0);
+            node.param(ns.str() + "exposure_lower", config.exposureLower, 15.0);
+            node.param(ns.str() + "auto_gain", config.autoGain, false);
+            node.param(ns.str() + "gain", config.gain, 10.0);
+            node.param(ns.str() + "fps", config.fps, 10.0);
+            node.param(ns.str() + "brightness", config.brightness, 70);
+
+            config.exposureLower = std::max(15.0, config.exposureLower);
+            config.exposureTime = std::max(config.exposureTime, config.exposureLower);
+            if (DriverMode == EXPOSURE_MODE) {
+                config.autoExposure = false;
+            }
+            cameraConfigs.push_back(config);
+            ROS_INFO("Camera %d config loaded", i);
+        }
+
         unsigned int nIndex = 0;
         if (stDeviceList.nDeviceNum > 0)
         {
@@ -192,6 +228,8 @@ namespace camera
             exit(-1);
         }
 
+        CameraConfig config = cameraConfigs[ndevice];
+
         // 打开设备
         nRet = MV_CC_OpenDevice(handle);
 
@@ -219,7 +257,7 @@ namespace camera
             }
         }
 
-        // 设置触发模式为off
+        // 设置触发模式
         nRet = MV_CC_SetEnumValue(handle, "TriggerMode", TriggerMode);
         if (MV_OK != nRet)
         {
@@ -247,9 +285,12 @@ namespace camera
             exit(-1);
         }
 
-        SetImageSize(handle, _width, _height);
-        SetExposureTime(handle, _autoExposure, _exposureTime, _exposureLower);
-        SetGain(handle, _autoGain, _gain);
+        // 使用相机特定配置设置参数
+        ROS_INFO("Setting device %d:", ndevice);
+        SetImageSize(handle, config.width, config.height);
+        SetExposureTime(handle, config.autoExposure, config.exposureTime, config.exposureLower, config.brightness);
+        SetGain(handle, config.autoGain, config.gain);
+        SetFPS(handle, config.fps);
 
         // 开始取流
         nRet = MV_CC_StartGrabbing(handle);
@@ -344,13 +385,18 @@ namespace camera
             if(ndevice == 0){
                 cv_ptr_l->image = cv::Mat(stImageInfo.nHeight, stImageInfo.nWidth, CV_8UC3, pDataForRGB).clone();
                 
-                if (FocusMode) {
+                if (DriverMode == FOCUS_MODE) {
                     double sharpness = calculateImageSharpness(cv_ptr_l->image, roi);
                     ROS_INFO("Camera %d Sharpness: %.2f", ndevice, sharpness);
                     std::stringstream ss;
                     ss << "Sharpness: " << std::fixed << std::setprecision(2) << sharpness;
                     cv::putText(cv_ptr_l->image, ss.str(), cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
                     cv::rectangle(cv_ptr_l->image, roi, cv::Scalar(0, 0, 255), 2);
+                }
+                else if (DriverMode == EXPOSURE_MODE) {
+                    double currentGray = CalculateAverageGray(cv_ptr_l->image, true);
+                    ROS_INFO("Device %d Current brightness: %.2f", ndevice, currentGray);
+                    AdjustExposureTime(handle, currentGray, adjustExposureTarget);
                 }
 
                 imageL_msg = *(cv_ptr_l->toImageMsg());
@@ -359,16 +405,22 @@ namespace camera
                     // 处理时间戳
                 }
                 imageL_pub.publish(imageL_msg, cameraL_info_msg);
+
             } else if (ndevice == 1) {
                 cv_ptr_r->image = cv::Mat(stImageInfo.nHeight, stImageInfo.nWidth, CV_8UC3, pDataForRGB).clone();
 
-                if (FocusMode) {
+                if (DriverMode == FOCUS_MODE) {
                     double sharpness = calculateImageSharpness(cv_ptr_r->image, roi);
                     ROS_INFO("Camera %d Sharpness: %.2f", ndevice, sharpness);
                     std::stringstream ss;
                     ss << "Sharpness: " << std::fixed << std::setprecision(2) << sharpness;
                     cv::putText(cv_ptr_r->image, ss.str(), cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
                     cv::rectangle(cv_ptr_r->image, roi, cv::Scalar(0, 0, 255), 2);
+                }
+                else if (DriverMode == EXPOSURE_MODE) {
+                    double currentGray = CalculateAverageGray(cv_ptr_l->image, true);
+                    ROS_INFO("Device %d Current brightness: %.2f", ndevice, currentGray);
+                    AdjustExposureTime(handle, currentGray, adjustExposureTarget);
                 }
 
                 imageR_msg = *(cv_ptr_r->toImageMsg());
@@ -377,6 +429,7 @@ namespace camera
                     // 处理时间戳
                 }
                 imageR_pub.publish(imageR_msg, cameraR_info_msg);
+
             }
             pthread_mutex_unlock(&mutexs[ndevice]);
             free(pDataForRGB);
@@ -385,9 +438,54 @@ namespace camera
         return NULL;
     }
 
+    double Camera::CalculateAverageGray(const cv::Mat& image, bool isLeft)
+    {
+        cv::Mat gray;
+        if (image.channels() == 3) {
+            cv::cvtColor(image, gray, cv::COLOR_BGR2GRAY);
+        } else {
+            gray = image.clone();
+        }
+
+        if (isLeft) {
+            gray = gray(roi);
+        }
+
+        cv::Scalar meanValue = cv::mean(gray);
+        return meanValue[0];
+    }
+
+    void Camera::AdjustExposureTime(void* handle, double currentGray, double targetGray)
+    {
+        if (std::abs(currentGray - targetGray) < 3)
+            return;
+
+        double currentExposure;
+        nRet = MV_CC_GetFloatValue(handle, "ExposureTime", currentExposure);
+        if (nRet != MV_OK)
+        {
+            ROS_ERROR("MV_CC_GetFloatValue(ExposureTime) fail! nRet [%x]\n", nRet);
+            exit(-1);
+        }
+        ROS_INFO("Current Exposure time: %.2f us", currentExposure)
+        
+        double ratio = targetGray / currentGray;
+        double targetExposure = currentExposure * ratio;
+        targetExposure = std::max(15, targetExposure);
+        ROS_INFO("Setting exposure time to: %.2f us", targetExposure)
+        
+        nRet = MV_CC_SetFloatValue(handle, "ExposureTime", targetExposure);
+        if (nRet != MV_OK)
+        {
+            ROS_ERROR("MV_CC_SetExposureTime fail! nRet [%x]\n", nRet);
+            exit(-1);
+        }
+    }
+
     // 设置图像尺寸
     void Camera::SetImageSize(void* handle, int width, int height)
     {
+        ROS_INFO("Setting image size to %dx%d", width, height);
         nRet = MV_CC_SetIntValue(handle, "Width", width);
         if (MV_OK != nRet)
         {
@@ -403,10 +501,11 @@ namespace camera
     }
 
     // 设置曝光时间
-    void Camera::SetExposureTime(void* handle, bool autoExposure, double exposureTime, double exposureLower)
+    void Camera::SetExposureTime(void* handle, bool autoExposure, double exposureTime, double exposureLower, int brightness)
     {
         if (autoExposure)
         {
+            ROS_INFO("Setting auto exposure (lower: %.2f, upper: %.2f us, brightness: %d)", exposureLower, exposureTime, brightness);
             nRet = MV_CC_SetEnumValue(handle, "ExposureAuto", 2); // 自动曝光
             if (MV_OK != nRet)
             {
@@ -425,7 +524,7 @@ namespace camera
                 ROS_ERROR("MV_CC_SetAutoExposureTimeUpper fail! nRet [%x]\n", nRet);
                 exit(-1);
             }
-            nRet = MV_CC_SetBrightness(handle, _brightness);
+            nRet = MV_CC_SetBrightness(handle, brightness);
             if (nRet != MV_OK)
             {
                 ROS_ERROR("MV_CC_MV_CC_SetBrightness fail! nRet [%x]\n", nRet);
@@ -434,6 +533,7 @@ namespace camera
         }
         else
         {
+            ROS_INFO("Setting exposure time to: %.2f us", exposureTime);
             nRet = MV_CC_SetEnumValue(handle, "ExposureAuto", 0); // 固定曝光
             if (MV_OK != nRet)
             {
@@ -454,6 +554,7 @@ namespace camera
     {
         if (autoGain)
         {
+            ROS_INFO("Setting auto gain");
             nRet = MV_CC_SetEnumValue(handle, "GainAuto", 2); // 自动增益
             if (MV_OK != nRet)
             {
@@ -463,6 +564,7 @@ namespace camera
         }
         else
         {
+            ROS_INFO("Setting gain: %.2f", gain);
             nRet = MV_CC_SetEnumValue(handle, "GainAuto", 0); // 固定增益
             if (MV_OK != nRet)
             {
@@ -480,6 +582,7 @@ namespace camera
 
     void Camera::SetFPS(void* handle, double fps)
     {
+        ROS_INFO("Setting FPS to %.2f", fps);
         nRet = MV_CC_SetBoolValue(handle, "AcquisitionFrameRateEnable", true);
         if (nRet != MV_OK)
         {

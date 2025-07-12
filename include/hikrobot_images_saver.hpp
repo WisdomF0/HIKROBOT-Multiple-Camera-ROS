@@ -99,8 +99,10 @@ void HikrobotImageSaver::saveImageCallback(const std_msgs::Bool::ConstPtr& msg) 
 void HikrobotImageSaver::imageCallback(const sensor_msgs::ImageConstPtr& left_msg, 
                                      const sensor_msgs::ImageConstPtr& right_msg) {
     try {
-        current_frame_left_ = cv_bridge::toCvCopy(left_msg, "bgr8")->image;
-        current_frame_right_ = cv_bridge::toCvCopy(right_msg, "bgr8")->image;
+        if (!save_image_flag_) {
+            current_frame_left_ = cv_bridge::toCvCopy(left_msg, "bgr8")->image;
+            current_frame_right_ = cv_bridge::toCvCopy(right_msg, "bgr8")->image;
+        }
     } catch (cv_bridge::Exception& e) {
         ROS_ERROR("cv_bridge exception: %s", e.what());
     }
