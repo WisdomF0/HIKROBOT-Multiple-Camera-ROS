@@ -73,6 +73,23 @@ namespace camera
         return variance;
     }
 
+    double CalculateAverageGray(const cv::Mat& image, bool isLeft)
+    {
+        cv::Mat gray;
+        if (image.channels() == 3) {
+            cv::cvtColor(image, gray, cv::COLOR_BGR2GRAY);
+        } else {
+            gray = image.clone();
+        }
+
+        if (isLeft) {
+            gray = gray(roi);
+        }
+
+        cv::Scalar meanValue = cv::mean(gray);
+        return meanValue[0];
+    }
+
     class Camera
     {
     public:
@@ -90,8 +107,7 @@ namespace camera
         void SetExposureTime(void* handle, bool autoExposure, double exposureTime, double exposureLower, int brightness);
         void SetGain(void* handle, bool autoGain, double gain);
 
-        double CalculateAverageGray(const cv::Mat& image, bool isLeft);
-        void AdjustExposureTime(void* handle, double currentGray, double targetGray);
+        static void AdjustExposureTime(void* handle, double currentGray, double targetGray);
         void AdjustExposure(int);
 
     private:
@@ -127,7 +143,7 @@ namespace camera
             ROS_INFO("FocusMode roi:%d, %d, %d, %d", roi_x, roi_y, roi_w, roi_h);
         }
 
-        node.param("adjustExposureTarget", adjustExposureTarget, 128);
+        node.param("adjustExposureTarget", adjustExposureTarget, 128.0);
 
         image_transport::ImageTransport main_cam_image(node);
         imageL_pub = main_cam_image.advertiseCamera("/hikrobot_camera_L/image_raw", 1000);
@@ -163,7 +179,7 @@ namespace camera
             node.param(ns.str() + "auto_gain", config.autoGain, false);
             node.param(ns.str() + "gain", config.gain, 10.0);
             node.param(ns.str() + "fps", config.fps, 10.0);
-            node.param(ns.str() + "brightness", config.brightness, 70);
+            node.param(ns.str() + "brightness", config.brightness, 70.0);
 
             config.exposureLower = std::max(15.0, config.exposureLower);
             config.exposureTime = std::max(config.exposureTime, config.exposureLower);
@@ -438,41 +454,25 @@ namespace camera
         return NULL;
     }
 
-    double Camera::CalculateAverageGray(const cv::Mat& image, bool isLeft)
-    {
-        cv::Mat gray;
-        if (image.channels() == 3) {
-            cv::cvtColor(image, gray, cv::COLOR_BGR2GRAY);
-        } else {
-            gray = image.clone();
-        }
-
-        if (isLeft) {
-            gray = gray(roi);
-        }
-
-        cv::Scalar meanValue = cv::mean(gray);
-        return meanValue[0];
-    }
-
     void Camera::AdjustExposureTime(void* handle, double currentGray, double targetGray)
     {
         if (std::abs(currentGray - targetGray) < 3)
             return;
 
-        double currentExposure;
-        nRet = MV_CC_GetFloatValue(handle, "ExposureTime", currentExposure);
+        MVCC_FLOATVALUE exposureParam = {0};
+        nRet = MV_CC_GetFloatValue(handle, "ExposureTime", &exposureParam);
         if (nRet != MV_OK)
         {
             ROS_ERROR("MV_CC_GetFloatValue(ExposureTime) fail! nRet [%x]\n", nRet);
             exit(-1);
         }
-        ROS_INFO("Current Exposure time: %.2f us", currentExposure)
+        double currentExposure = exposureParam.fCurValue;
+        ROS_INFO("Current Exposure time: %.2f us", currentExposure);
         
         double ratio = targetGray / currentGray;
         double targetExposure = currentExposure * ratio;
-        targetExposure = std::max(15, targetExposure);
-        ROS_INFO("Setting exposure time to: %.2f us", targetExposure)
+        targetExposure = std::max(15.0, targetExposure);
+        ROS_INFO("Setting exposure time to: %.2f us", targetExposure);
         
         nRet = MV_CC_SetFloatValue(handle, "ExposureTime", targetExposure);
         if (nRet != MV_OK)
