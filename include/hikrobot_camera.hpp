@@ -19,7 +19,8 @@ namespace camera
     #define EXPOSURE_MODE 2
     #define CA_GRAY_MODE 3
 
-    double LOOP_MAX, LOOP_MIN, LOOP_N, LOOP_RATE;
+    double LOOP_MAX, LOOP_MIN, LOOP_RATE;
+    int LOOP_N;
 
     std::vector<cv::Mat> frames;
     std::vector<bool> frame_emptys;
@@ -151,7 +152,7 @@ namespace camera
         else if (DriverMode == CA_GRAY_MODE) {
             node.param("LOOP_MAX", LOOP_MAX, 200000.0);
             node.param("LOOP_MIN", LOOP_MIN, 100000.0);
-            node.param("LOOP_N", LOOP_N, 10.0);
+            node.param("LOOP_N", LOOP_N, 10);
             node.param("LOOP_RATE", LOOP_RATE, 0.2);
             ROS_INFO("Loop exposure time %.1f to %.1f, stride: %d, rate: %.2f", LOOP_MIN, LOOP_MAX, LOOP_N, LOOP_RATE);
         }
@@ -373,8 +374,9 @@ namespace camera
         }
         unsigned int nDataSize = stParam.nCurValue;
 
+        ros::Rate loop_rate(1.0); // 默认值，后续根据情况修改
         if (DriverMode == CA_GRAY_MODE) {
-            ros::Rate loop_rate(LOOP_RATE);
+            loop_rate = ros::Rate(LOOP_RATE);
         }
 
         while (ros::ok())
