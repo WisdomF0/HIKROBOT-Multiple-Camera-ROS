@@ -151,7 +151,7 @@ namespace camera
             node.param("LOOP_MAX", LOOP_MAX, 200000.0);
             node.param("LOOP_MIN", LOOP_MIN, 100000.0);
             node.param("LOOP_N", LOOP_N, 10);
-            node.param("LOOP_RATE", LOOP_RATE, 0.2);
+            node.param("LOOP_RATE", LOOP_RATE, 5);
             ROS_INFO("Loop exposure time %.1f to %.1f, stride: %d, rate: %.2f", LOOP_MIN, LOOP_MAX, LOOP_N, LOOP_RATE);
         }
 
@@ -373,10 +373,8 @@ namespace camera
         }
         unsigned int nDataSize = stParam.nCurValue;
 
-        ros::Rate loop_rate(1.0); // 默认值，后续根据情况修改
-        if (DriverMode == CA_GRAY_MODE) {
-            loop_rate = ros::Rate(LOOP_RATE);
-        }
+        double last[2] = {ros::Time::now().toSec()};
+        double now;
 
         while (ros::ok())
         {
@@ -437,21 +435,24 @@ namespace camera
                     AdjustExposureTime(handle, currentGray, adjustExposureTarget);
                 }
                 else if (DriverMode == CA_GRAY_MODE) {
-                    loop_rate.sleep();
-                    double currentGray = CalculateAverageGray(cv_ptr_l->image, true);
-                    MVCC_FLOATVALUE exposureParam = {0};
-                    nRet = MV_CC_GetFloatValue(handle, "ExposureTime", &exposureParam);
-                    if (nRet != MV_OK)
+                    now = ros::Time::now().toSec();
+                    if (now - last[ndevice] >= LOOP_RATE) 
                     {
-                        ROS_ERROR("MV_CC_GetExposureTime Failed! nRet [%x]\n", nRet);
-                        exit(-1);
+                        double currentGray = CalculateAverageGray(cv_ptr_l->image, true);
+                        MVCC_FLOATVALUE exposureParam = {0};
+                        nRet = MV_CC_GetFloatValue(handle, "ExposureTime", &exposureParam);
+                        if (nRet != MV_OK)
+                        {
+                            ROS_ERROR("MV_CC_GetExposureTime Failed! nRet [%x]\n", nRet);
+                            exit(-1);
+                        }
+                        ROS_INFO("Device %d Current brightness: %.2f, Current ExposureTime: %.2f", ndevice, currentGray, exposureParam.fCurValue);
+                        std::stringstream ss;
+                        ss << "Brightness: " << std::fixed << std::setprecision(2) << currentGray;
+                        cv::putText(cv_ptr_l->image, ss.str(), cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
+                        timer[ndevice] += 1;
+                        LoopExposureTime(handle, timer[ndevice]);
                     }
-                    ROS_INFO("Device %d Current brightness: %.2f, Current ExposureTime: %.2f", ndevice, currentGray, exposureParam.fCurValue);
-                    std::stringstream ss;
-                    ss << "Brightness: " << std::fixed << std::setprecision(2) << currentGray;
-                    cv::putText(cv_ptr_l->image, ss.str(), cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
-                    timer[ndevice] += 1;
-                    LoopExposureTime(handle, timer[ndevice]);
                 }
 
                 imageL_msg = *(cv_ptr_l->toImageMsg());
@@ -478,21 +479,24 @@ namespace camera
                     AdjustExposureTime(handle, currentGray, adjustExposureTarget);
                 }
                 else if (DriverMode == CA_GRAY_MODE) {
-                    loop_rate.sleep();
-                    double currentGray = CalculateAverageGray(cv_ptr_r->image, false);
-                    MVCC_FLOATVALUE exposureParam = {0};
-                    nRet = MV_CC_GetFloatValue(handle, "ExposureTime", &exposureParam);
-                    if (nRet != MV_OK)
+                    now = ros::Time::now().toSec();
+                    if (now - last[ndevice] >= LOOP_RATE) 
                     {
-                        ROS_ERROR("MV_CC_GetExposureTime Failed! nRet [%x]\n", nRet);
-                        exit(-1);
+                        double currentGray = CalculateAverageGray(cv_ptr_r->image, false);
+                        MVCC_FLOATVALUE exposureParam = {0};
+                        nRet = MV_CC_GetFloatValue(handle, "ExposureTime", &exposureParam);
+                        if (nRet != MV_OK)
+                        {
+                            ROS_ERROR("MV_CC_GetExposureTime Failed! nRet [%x]\n", nRet);
+                            exit(-1);
+                        }
+                        ROS_INFO("Device %d Current brightness: %.2f, Current ExposureTime: %.2f", ndevice, currentGray, exposureParam.fCurValue);
+                        std::stringstream ss;
+                        ss << "Brightness: " << std::fixed << std::setprecision(2) << currentGray;
+                        cv::putText(cv_ptr_r->image, ss.str(), cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
+                        timer[ndevice] += 1;
+                        LoopExposureTime(handle, timer[ndevice]);
                     }
-                    ROS_INFO("Device %d Current brightness: %.2f, Current ExposureTime: %.2f", ndevice, currentGray, exposureParam.fCurValue);
-                    std::stringstream ss;
-                    ss << "Brightness: " << std::fixed << std::setprecision(2) << currentGray;
-                    cv::putText(cv_ptr_r->image, ss.str(), cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
-                    timer[ndevice] += 1;
-                    LoopExposureTime(handle, timer[ndevice]);
                 }
 
                 imageR_msg = *(cv_ptr_r->toImageMsg());
