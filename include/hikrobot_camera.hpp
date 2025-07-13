@@ -151,7 +151,7 @@ namespace camera
             node.param("LOOP_MAX", LOOP_MAX, 200000.0);
             node.param("LOOP_MIN", LOOP_MIN, 100000.0);
             node.param("LOOP_N", LOOP_N, 10);
-            node.param("LOOP_RATE", LOOP_RATE, 5);
+            node.param("LOOP_RATE", LOOP_RATE, 5.0);
             ROS_INFO("Loop exposure time %.1f to %.1f, stride: %d, rate: %.2f", LOOP_MIN, LOOP_MAX, LOOP_N, LOOP_RATE);
         }
 
