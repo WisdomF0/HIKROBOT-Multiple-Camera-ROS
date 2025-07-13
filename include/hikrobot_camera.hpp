@@ -21,6 +21,7 @@ namespace camera
 
     double LOOP_MAX, LOOP_MIN, LOOP_RATE;
     int LOOP_N;
+    double last[2];
 
     std::vector<cv::Mat> frames;
     std::vector<bool> frame_emptys;
@@ -372,8 +373,8 @@ namespace camera
             exit(-1);
         }
         unsigned int nDataSize = stParam.nCurValue;
-
-        double last[2] = {ros::Time::now().toSec()};
+        
+        last[ndevice] = ros::Time::now().toSec();
         double now;
 
         while (ros::ok())
@@ -452,6 +453,7 @@ namespace camera
                         cv::putText(cv_ptr_l->image, ss.str(), cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
                         timer[ndevice] += 1;
                         LoopExposureTime(handle, timer[ndevice]);
+                        last[ndevice] = now;
                     }
                 }
 
@@ -496,6 +498,7 @@ namespace camera
                         cv::putText(cv_ptr_r->image, ss.str(), cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
                         timer[ndevice] += 1;
                         LoopExposureTime(handle, timer[ndevice]);
+                        last[ndevice] = now;
                     }
                 }
 
