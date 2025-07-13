@@ -14,14 +14,7 @@ find_package(catkin REQUIRED COMPONENTS
   cv_bridge
   image_transport
   camera_info_manager
-  dynamic_reconfigure
 )
-
-generate_dynamic_reconfigure_options(
-    cfg/CameraConfig.cfg
-)
-
-add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} hikrobot_camera_gencfg)
 
 catkin_package(
  
@@ -38,8 +31,6 @@ include_directories(
   ${PCL_INCLUDE_DIRS}
   include
   /opt/MVS/include/
-  ${dynamic_reconfigure_PACKAGE_PATH}/cmake/cfgbuild.cmake
-  ${CATKIN_DEVEL_PREFIX}/include
 )
 
 LINK_DIRECTORIES(
