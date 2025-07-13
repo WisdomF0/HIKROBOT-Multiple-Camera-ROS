@@ -460,7 +460,7 @@ namespace camera
             return;
 
         MVCC_FLOATVALUE exposureParam = {0};
-        nRet = MV_CC_GetFloatValue(handle, "ExposureTime", &exposureParam);
+        int nRet = MV_CC_GetFloatValue(handle, "ExposureTime", &exposureParam);
         if (nRet != MV_OK)
         {
             ROS_ERROR("MV_CC_GetFloatValue(ExposureTime) fail! nRet [%x]\n", nRet);
