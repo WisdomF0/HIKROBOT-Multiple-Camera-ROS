@@ -17,6 +17,7 @@ namespace camera
     #define NOMOAL_MODE 0
     #define FOCUS_MODE 1
     #define EXPOSURE_MODE 2
+    #define CA_GRAY_MODE 3
 
     std::vector<cv::Mat> frames;
     std::vector<bool> frame_emptys;
@@ -414,6 +415,13 @@ namespace camera
                     ROS_INFO("Device %d Current brightness: %.2f", ndevice, currentGray);
                     AdjustExposureTime(handle, currentGray, adjustExposureTarget);
                 }
+                else if (DriverMode == CA_GRAY_MODE) {
+                    double currentGray = CalculateAverageGray(cv_ptr_l->image, true);
+                    ROS_INFO("Device %d Current brightness: %.2f", ndevice, currentGray);
+                    std::stringstream ss;
+                    ss << "Brightness: " << std::fixed << std::setprecision(2) << currentGray;
+                    cv::putText(cv_ptr_l->image, ss.str(), cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
+                }
 
                 imageL_msg = *(cv_ptr_l->toImageMsg());
                 if(SysteamTime)
@@ -434,9 +442,16 @@ namespace camera
                     cv::rectangle(cv_ptr_r->image, roi, cv::Scalar(0, 0, 255), 2);
                 }
                 else if (DriverMode == EXPOSURE_MODE) {
-                    double currentGray = CalculateAverageGray(cv_ptr_l->image, true);
+                    double currentGray = CalculateAverageGray(cv_ptr_r->image, false);
                     ROS_INFO("Device %d Current brightness: %.2f", ndevice, currentGray);
                     AdjustExposureTime(handle, currentGray, adjustExposureTarget);
+                }
+                else if (DriverMode == CA_GRAY_MODE) {
+                    double currentGray = CalculateAverageGray(cv_ptr_r->image, false);
+                    ROS_INFO("Device %d Current brightness: %.2f", ndevice, currentGray);
+                    std::stringstream ss;
+                    ss << "Brightness: " << std::fixed << std::setprecision(2) << currentGray;
+                    cv::putText(cv_ptr_r->image, ss.str(), cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
                 }
 
                 imageR_msg = *(cv_ptr_r->toImageMsg());
