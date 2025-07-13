@@ -18,8 +18,10 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 generate_dynamic_reconfigure_options(
-    cfg/Camera.cfg
+    cfg/CameraConfig.cfg
 )
+
+add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} hikrobot_camera_gencfg)
 
 catkin_package(
  
