@@ -8,6 +8,8 @@
 #include <image_transport/image_transport.h>
 #include <cv_bridge/cv_bridge.h>
 #include <camera_info_manager/camera_info_manager.h>
+#include <dynamic_reconfigure/server.h>  // 动态参数头文件
+#include "camera/CameraConfig.h"         // 生成的动态配置头文件
 #include "MvErrorDefine.h"
 #include "CameraParams.h"
 #include "MvCameraControl.h"
@@ -17,11 +19,12 @@ namespace camera
     #define NOMOAL_MODE 0
     #define FOCUS_MODE 1
     #define EXPOSURE_MODE 2
+    #define CA_GRAY_MODE 3
 
     std::vector<cv::Mat> frames;
     std::vector<bool> frame_emptys;
     std::vector<pthread_mutex_t> mutexs;
-    bool SysteamTime;
+    bool SystemTime;
 
     image_transport::CameraPublisher imageL_pub;
     image_transport::CameraPublisher imageR_pub;
@@ -50,6 +53,9 @@ namespace camera
     // 相机配置结构体
     struct CameraConfig {
         int TriggerMode;
+        // 触发模式：MV_TRIGGER_SOURCE_LINE0 = 0,MV_TRIGGER_SOURCE_LINE1 = 1,MV_TRIGGER_SOURCE_LINE2 = 2,
+        // MV_TRIGGER_SOURCE_LINE3 = 3,MV_TRIGGER_SOURCE_COUNTER0 = 4,MV_TRIGGER_SOURCE_SOFTWARE = 7,
+        // MV_TRIGGER_SOURCE_FrequencyConverter = 8
         int TriggerSource;
         int width, height;
         bool autoExposure, autoGain;
@@ -117,21 +123,17 @@ namespace camera
         std::vector<CameraConfig> cameraConfigs; // 每个相机的配置
 
         int nRet;
-        int TriggerMode;
-        // 触发模式：MV_TRIGGER_SOURCE_LINE0 = 0,MV_TRIGGER_SOURCE_LINE1 = 1,MV_TRIGGER_SOURCE_LINE2 = 2,
-        // MV_TRIGGER_SOURCE_LINE3 = 3,MV_TRIGGER_SOURCE_COUNTER0 = 4,MV_TRIGGER_SOURCE_SOFTWARE = 7,
-        // MV_TRIGGER_SOURCE_FrequencyConverter = 8
-        int TriggerSource;
-        bool IsUpdateExposure;
-        int TargetExposure;
+
+        // 动态参数服务器
+        boost::shared_ptr<dynamic_reconfigure::Server<CameraConfig>> dyn_srv_;
+        // 动态参数服务器回调函数
+        void dynamicReconfigureCallback(CameraConfig &config, uint32_t level);
     };
 
     Camera::Camera(ros::NodeHandle &node)
     {
         //读取待设置的摄像头参数 第三个参数是默认值 yaml文件未给出该值时生效
-        node.param("TriggerMode", TriggerMode, 0);    //0为不启用触发，1为启用
-        node.param("TriggerSource", TriggerSource, 0);  //设置触发模式
-        node.param("SysteamTime", SysteamTime, false);
+        node.param("SystemTime", SystemTime, false);
 
         node.param("roi_x", roi_x, 480);
         node.param("roi_y", roi_y, 300);
@@ -171,6 +173,8 @@ namespace camera
             ns << "camera" << i << "/";
             
             // 读取相机i的参数
+            node.param(ns.str() + "TriggerMode", config.TriggerMode, 0);    //0为不启用触发，1为启用
+            node.param(ns.str() + "TriggerSource", config.TriggerSource, 0);  //设置触发模式
             node.param(ns.str() + "image_width", config.width, 640);
             node.param(ns.str() + "image_height", config.height, 480);
             node.param(ns.str() + "auto_exposure", config.autoExposure, false);
@@ -230,6 +234,13 @@ namespace camera
             ROS_INFO("Run Device: %d\n", i);
             RunCamera(i, handles[i]);
         }
+
+        // 初始化动态参数服务器（新增核心）
+        dyn_srv_.reset(new dynamic_reconfigure::Server<camera::CameraConfig>(node));
+        dynamic_reconfigure::Server<camera::CameraConfig>::CallbackType f;
+        f = boost::bind(&Camera::dynamicReconfigureCallback, this, _1, _2);
+        dyn_srv_->setCallback(f);
+        ROS_INFO("Dynamic reconfigure server initialized");
     }
 
     // 初始化和启动相机
@@ -274,16 +285,16 @@ namespace camera
         }
 
         // 设置触发模式
-        nRet = MV_CC_SetEnumValue(handle, "TriggerMode", TriggerMode);
+        nRet = MV_CC_SetEnumValue(handle, "TriggerMode", config.TriggerMode);
         if (MV_OK != nRet)
         {
             ROS_INFO("MV_CC_SetTriggerMode fail! nRet [%x]\n", nRet);
             exit(-1);
         }
 
-        if(TriggerMode){
+        if(config.TriggerMode){
             // 设置触发源
-            nRet = MV_CC_SetEnumValue(handle, "TriggerSource", TriggerSource);
+            nRet = MV_CC_SetEnumValue(handle, "TriggerSource", config.TriggerSource);
             if (MV_OK != nRet)
             {
                 ROS_ERROR("MV_CC_SetTriggerSource fail! nRet [%x]\n", nRet);
@@ -416,7 +427,7 @@ namespace camera
                 }
 
                 imageL_msg = *(cv_ptr_l->toImageMsg());
-                if(SysteamTime)
+                if(SystemTime)
                 {
                     // 处理时间戳
                 }
@@ -434,13 +445,13 @@ namespace camera
                     cv::rectangle(cv_ptr_r->image, roi, cv::Scalar(0, 0, 255), 2);
                 }
                 else if (DriverMode == EXPOSURE_MODE) {
-                    double currentGray = CalculateAverageGray(cv_ptr_l->image, true);
+                    double currentGray = CalculateAverageGray(cv_ptr_r->image, false);
                     ROS_INFO("Device %d Current brightness: %.2f", ndevice, currentGray);
                     AdjustExposureTime(handle, currentGray, adjustExposureTarget);
                 }
 
                 imageR_msg = *(cv_ptr_r->toImageMsg());
-                if(SysteamTime)
+                if(SystemTime)
                 {
                     // 处理时间戳
                 }
@@ -471,6 +482,7 @@ namespace camera
         
         double ratio = targetGray / currentGray;
         double targetExposure = currentExposure * ratio;
+
         targetExposure = std::max(15.0, targetExposure);
         ROS_INFO("Setting exposure time to: %.2f us", targetExposure);
         
@@ -592,6 +604,72 @@ namespace camera
         if (nRet != MV_OK)
         {
             ROS_ERROR("Failed to set frame rate! Error: 0x%x", nRet);
+        }
+    }
+
+     // 动态参数回调函数（核心新增）
+    void Camera::dynamicReconfigureCallback(camera::CameraConfig &config, uint32_t level)
+    {
+        ROS_INFO("Updating dynamic parameters...");
+
+        // 更新通用参数
+        // roi_x = config.roi_x;
+        // roi_y = config.roi_y;
+        // roi_w = config.roi_w;
+        // roi_h = config.roi_h;
+        // roi = cv::Rect(roi_x, roi_y, roi_w, roi_h);
+        // DriverMode = config.DriverMode;
+        // adjustExposureTarget = config.adjustExposureTarget;
+
+        // 为每个相机更新参数并应用
+        for (int i = 0; i < stDeviceList.nDeviceNum; ++i)
+        {
+            if (i >= 2) break;  // 支持最多2个相机，可根据实际情况调整
+
+            void* handle = handles[i];
+            if (!handle) continue;
+
+            // 更新相机配置（根据相机索引获取对应参数）
+            cameraConfigs[i].TriggerMode = (i == 0) ? config.camera0_TriggerMode : config.camera1_TriggerMode;
+            cameraConfigs[i].TriggerSource = (i == 0) ? config.camera0_TriggerSource : config.camera1_TriggerSource;
+            cameraConfigs[i].autoExposure = (i == 0) ? config.camera0_auto_exposure : config.camera1_auto_exposure;
+            cameraConfigs[i].exposureTime = (i == 0) ? config.camera0_exposure_time : config.camera1_exposure_time;
+            cameraConfigs[i].exposureLower = (i == 0) ? config.camera0_exposure_lower : config.camera1_exposure_lower;
+            cameraConfigs[i].autoGain = (i == 0) ? config.camera0_auto_gain : config.camera1_auto_gain;
+            cameraConfigs[i].gain = (i == 0) ? config.camera0_gain : config.camera1_gain;
+            cameraConfigs[i].fps = (i == 0) ? config.camera0_fps : config.camera1_fps;
+            cameraConfigs[i].brightness = (i == 0) ? config.camera0_brightness : config.camera1_brightness;
+
+            // 参数范围校验
+            cameraConfigs[i].exposureLower = std::max(15.0, cameraConfigs[i].exposureLower);
+            cameraConfigs[i].exposureTime = std::max(cameraConfigs[i].exposureTime, cameraConfigs[i].exposureLower);
+
+            // 加锁保护，应用参数到相机
+            pthread_mutex_lock(&mutexs[i]);
+
+            // 更新触发模式
+            nRet = MV_CC_SetEnumValue(handle, "TriggerMode", cameraConfigs[i].TriggerMode);
+            if (MV_OK != nRet)
+                ROS_ERROR("Camera %d: Set TriggerMode failed! 0x%x", i, nRet);
+
+            // 更新触发源（仅当触发模式启用）
+            if (cameraConfigs[i].TriggerMode)
+            {
+                nRet = MV_CC_SetEnumValue(handle, "TriggerSource", cameraConfigs[i].TriggerSource);
+                if (MV_OK != nRet)
+                    ROS_ERROR("Camera %d: Set TriggerSource failed! 0x%x", i, nRet);
+            }
+
+            // 更新曝光参数
+            SetExposureTime(handle, cameraConfigs[i].autoExposure, cameraConfigs[i].exposureTime, cameraConfigs[i].exposureLower, cameraConfigs[i].brightness);
+
+            // 更新增益参数
+            SetGain(handle, cameraConfigs[i].autoGain, cameraConfigs[i].gain);
+
+            // 更新帧率
+            SetFPS(handle, cameraConfigs[i].fps);
+
+            pthread_mutex_unlock(&mutexs[i]);
         }
     }
 

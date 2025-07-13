@@ -1,6 +1,6 @@
 TriggerMode: 0
 TriggerSource: 0
-SysteamTime: false
+SystemTime: false
 
 DriverMode: 0 # 0: 常规驱动模式, 1: 对焦模式, 2: 调焦模式
 

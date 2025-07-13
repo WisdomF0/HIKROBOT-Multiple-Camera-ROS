@@ -14,6 +14,11 @@ find_package(catkin REQUIRED COMPONENTS
   cv_bridge
   image_transport
   camera_info_manager
+  dynamic_reconfigure
+)
+
+generate_dynamic_reconfigure_options(
+    cfg/Camera.cfg
 )
 
 catkin_package(
@@ -31,6 +36,8 @@ include_directories(
   ${PCL_INCLUDE_DIRS}
   include
   /opt/MVS/include/
+  ${dynamic_reconfigure_PACKAGE_PATH}/cmake/cfgbuild.cmake
+  ${CATKIN_DEVEL_PREFIX}/include
 )
 
 LINK_DIRECTORIES(
