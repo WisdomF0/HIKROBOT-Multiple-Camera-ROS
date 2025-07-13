@@ -129,8 +129,6 @@ namespace camera
         int TriggerSource;
         bool IsUpdateExposure;
         int TargetExposure;
-
-        static int timer[2]={0};
     };
 
     Camera::Camera(ros::NodeHandle &node)
@@ -357,6 +355,7 @@ namespace camera
         int image_empty_count = 0; //空图帧数
         unsigned char *pDataForRGB = NULL;
         MV_CC_PIXEL_CONVERT_PARAM stConvertParam = {0};
+        int timer[2] = {0};
 
         ThreadData* data = static_cast<ThreadData*>(p_handle);
         int ndevice = data->ndevice;
