@@ -95,6 +95,26 @@ namespace camera
         return meanValue[0];
     }
 
+    // PID 控制器类
+    class PIDController {
+    public:
+        PIDController(double kp, double ki, double kd) : kp(kp), ki(ki), kd(kd), integral(0), prev_error(0) {}
+
+        double compute(double setpoint, double process_variable, double dt) {
+            double error = setpoint - process_variable;
+            integral += error * dt;
+            double derivative = (error - prev_error) / dt;
+            double output = kp * error + ki * integral + kd * derivative;
+            prev_error = error;
+            return output;
+        }
+
+    private:
+        double kp, ki, kd;
+        double integral;
+        double prev_error;
+    };
+
     class Camera
     {
     public:
@@ -113,6 +133,7 @@ namespace camera
         void SetGain(void* handle, bool autoGain, double gain);
 
         static void AdjustExposureTime(void* handle, double currentGray, double targetGray);
+        static void AdjustExposureTimePID(void* handle, double currentGray, double targetGray, PIDController& pid);
         static void LoopExposureTime(void* handle, int time);
         void AdjustExposure(int);
 
@@ -147,6 +168,10 @@ namespace camera
         roi = cv::Rect(roi_x, roi_y, roi_w, roi_h);
         if (DriverMode == FOCUS_MODE) {
             ROS_INFO("FocusMode roi:%d, %d, %d, %d", roi_x, roi_y, roi_w, roi_h);
+        }
+        else if (DriverMode == EXPOSURE_MODE) {
+            node.param("LOOP_MAX", LOOP_MAX, 200000.0);
+            node.param("LOOP_MIN", LOOP_MIN, 15.0);
         }
         else if (DriverMode == CA_GRAY_MODE) {
             node.param("LOOP_MAX", LOOP_MAX, 200000.0);
@@ -377,6 +402,8 @@ namespace camera
         last[ndevice] = ros::Time::now().toSec();
         double now;
 
+        PIDController pid(1.0, 0.1, 0.01);
+
         while (ros::ok())
         {
             nRet = MV_CC_GetOneFrameTimeout(handle, pData, nDataSize, &stImageInfo, 15);
@@ -432,8 +459,9 @@ namespace camera
                 }
                 else if (DriverMode == EXPOSURE_MODE) {
                     double currentGray = CalculateAverageGray(cv_ptr_l->image, true);
-                    ROS_INFO("Device %d Current brightness: %.2f", ndevice, currentGray);
-                    AdjustExposureTime(handle, currentGray, adjustExposureTarget);
+                    // ROS_INFO("Device %d Current brightness: %.2f", ndevice, currentGray);
+                    // AdjustExposureTime(handle, currentGray, adjustExposureTarget);
+                    AdjustExposureTimePID(handle, currentGray, adjustExposureTarget, pid);
                 }
                 else if (DriverMode == CA_GRAY_MODE) {
                     now = ros::Time::now().toSec();
@@ -477,8 +505,9 @@ namespace camera
                 }
                 else if (DriverMode == EXPOSURE_MODE) {
                     double currentGray = CalculateAverageGray(cv_ptr_r->image, false);
-                    ROS_INFO("Device %d Current brightness: %.2f", ndevice, currentGray);
-                    AdjustExposureTime(handle, currentGray, adjustExposureTarget);
+                    // ROS_INFO("Device %d Current brightness: %.2f", ndevice, currentGray);
+                    // AdjustExposureTime(handle, currentGray, adjustExposureTarget);
+                    AdjustExposureTimePID(handle, currentGray, adjustExposureTarget, pid);
                 }
                 else if (DriverMode == CA_GRAY_MODE) {
                     now = ros::Time::now().toSec();
@@ -526,6 +555,38 @@ namespace camera
         {
             ROS_ERROR("MV_CC_SetExposureTime fail! nRet [%x]\n", nR);
             exit(-1);
+        }
+    }
+
+    void Camera::AdjustExposureTimePID(void* handle, double currentGray, double targetGray, PIDController& pid)
+    {
+        if (std::abs(currentGray - targetGray) < 7.5)
+            return;
+
+        static double prev_time = ros::Time::now().toSec();
+        double current_time = ros::Time::now().toSec();
+        double dt = current_time - prev_time;
+        prev_time = current_time;
+
+        double output = pid.compute(targetGray, currentGray, dt);
+        // 获取当前曝光时间
+        MVCC_FLOATVALUE exposureParam = {0};
+        int nRet = MV_CC_GetFloatValue(handle, "ExposureTime", &exposureParam);
+        if (MV_OK != nRet) {
+            ROS_ERROR("Get ExposureTime fail! nRet [0x%x]\n", nRet);
+            return;
+        }
+
+        double newExposureTime = exposureParam.fCurValue + output;
+
+        // 限制曝光时间在合理范围内
+        newExposureTime = std::max(LOOP_MIN, newExposureTime);
+        newExposureTime = std::min(LOOP_MIN, newExposureTime);
+
+        // 设置新的曝光时间
+        nRet = MV_CC_SetFloatValue(handle, "ExposureTime", newExposureTime);
+        if (MV_OK != nRet) {
+            ROS_ERROR("Set ExposureTime fail! nRet [0x%x]\n", nRet);
         }
     }
 
