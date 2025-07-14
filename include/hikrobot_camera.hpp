@@ -581,7 +581,7 @@ namespace camera
 
         // 限制曝光时间在合理范围内
         newExposureTime = std::max(LOOP_MIN, newExposureTime);
-        newExposureTime = std::min(LOOP_MIN, newExposureTime);
+        newExposureTime = std::min(LOOP_MAX, newExposureTime);
 
         // 设置新的曝光时间
         nRet = MV_CC_SetFloatValue(handle, "ExposureTime", newExposureTime);
