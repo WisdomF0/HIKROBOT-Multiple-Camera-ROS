@@ -459,9 +459,12 @@ namespace camera
                 }
                 else if (DriverMode == EXPOSURE_MODE) {
                     double currentGray = CalculateAverageGray(cv_ptr_l->image, true);
-                    // ROS_INFO("Device %d Current brightness: %.2f", ndevice, currentGray);
-                    // AdjustExposureTime(handle, currentGray, adjustExposureTarget);
-                    AdjustExposureTimePID(handle, currentGray, adjustExposureTarget, pid);
+                    if (std::abs(currentGray - adjustExposureTarget) > 8.0)
+                    {
+                        // ROS_INFO("Device %d Current brightness: %.2f", ndevice, currentGray);
+                        // AdjustExposureTime(handle, currentGray, adjustExposureTarget);
+                        AdjustExposureTimePID(handle, currentGray, adjustExposureTarget, pid);
+                    }
                 }
                 else if (DriverMode == CA_GRAY_MODE) {
                     now = ros::Time::now().toSec();
@@ -505,9 +508,12 @@ namespace camera
                 }
                 else if (DriverMode == EXPOSURE_MODE) {
                     double currentGray = CalculateAverageGray(cv_ptr_r->image, false);
-                    // ROS_INFO("Device %d Current brightness: %.2f", ndevice, currentGray);
-                    // AdjustExposureTime(handle, currentGray, adjustExposureTarget);
-                    AdjustExposureTimePID(handle, currentGray, adjustExposureTarget, pid);
+                    if (std::abs(currentGray - adjustExposureTarget) > 8.0)
+                    {
+                        // ROS_INFO("Device %d Current brightness: %.2f", ndevice, currentGray);
+                        // AdjustExposureTime(handle, currentGray, adjustExposureTarget);
+                        AdjustExposureTimePID(handle, currentGray, adjustExposureTarget, pid);
+                    }
                 }
                 else if (DriverMode == CA_GRAY_MODE) {
                     now = ros::Time::now().toSec();
@@ -560,9 +566,6 @@ namespace camera
 
     void Camera::AdjustExposureTimePID(void* handle, double currentGray, double targetGray, PIDController& pid)
     {
-        if (std::abs(currentGray - targetGray) < 7.5)
-            return;
-
         static double prev_time = ros::Time::now().toSec();
         double current_time = ros::Time::now().toSec();
         double dt = current_time - prev_time;
