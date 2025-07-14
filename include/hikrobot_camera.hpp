@@ -519,7 +519,7 @@ namespace camera
 
     void Camera::LoopExposureTime(void* handle, int time)
     {
-        double currentExposure = LOOP_MIN + (LOOP_MAX - LOOP_MIN) / LOOP_N * (time % LOOP_N);
+        double currentExposure = LOOP_MIN + (LOOP_MAX - LOOP_MIN) / LOOP_N * (time % (LOOP_N + 1));
         int nR = MV_CC_SetFloatValue(handle, "ExposureTime", currentExposure);
         ROS_INFO("Setting exposure time to: %.2f us", currentExposure);
         if (nR != MV_OK)
