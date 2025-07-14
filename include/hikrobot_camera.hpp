@@ -172,6 +172,9 @@ namespace camera
         else if (DriverMode == EXPOSURE_MODE) {
             node.param("LOOP_MAX", LOOP_MAX, 200000.0);
             node.param("LOOP_MIN", LOOP_MIN, 15.0);
+            node.param("adjustExposureTarget", adjustExposureTarget, 128.0);
+            ROS_INFO("Spectial exposure mode, targetBrightness:%.1f, MaxExposureTime, %.1f, MinExposureTime", 
+                adjustExposureTarget, LOOP_MAX, LOOP_MIN);
         }
         else if (DriverMode == CA_GRAY_MODE) {
             node.param("LOOP_MAX", LOOP_MAX, 200000.0);
@@ -180,8 +183,6 @@ namespace camera
             node.param("LOOP_RATE", LOOP_RATE, 5.0);
             ROS_INFO("Loop exposure time %.1f to %.1f, stride: %d, rate: %.2f", LOOP_MIN, LOOP_MAX, LOOP_N, LOOP_RATE);
         }
-
-        node.param("adjustExposureTarget", adjustExposureTarget, 128.0);
 
         image_transport::ImageTransport main_cam_image(node);
         imageL_pub = main_cam_image.advertiseCamera("/hikrobot_camera_L/image_raw", 1000);
@@ -461,7 +462,7 @@ namespace camera
                     double currentGray = CalculateAverageGray(cv_ptr_l->image, true);
                     if (std::abs(currentGray - adjustExposureTarget) > 8.0)
                     {
-                        // ROS_INFO("Device %d Current brightness: %.2f", ndevice, currentGray);
+                        ROS_INFO("Device %d Current brightness: %.2f", ndevice, currentGray);
                         // AdjustExposureTime(handle, currentGray, adjustExposureTarget);
                         AdjustExposureTimePID(handle, currentGray, adjustExposureTarget, pid);
                     }
@@ -510,7 +511,7 @@ namespace camera
                     double currentGray = CalculateAverageGray(cv_ptr_r->image, false);
                     if (std::abs(currentGray - adjustExposureTarget) > 8.0)
                     {
-                        // ROS_INFO("Device %d Current brightness: %.2f", ndevice, currentGray);
+                        ROS_INFO("Device %d Current brightness: %.2f", ndevice, currentGray);
                         // AdjustExposureTime(handle, currentGray, adjustExposureTarget);
                         AdjustExposureTimePID(handle, currentGray, adjustExposureTarget, pid);
                     }
@@ -587,6 +588,7 @@ namespace camera
         newExposureTime = std::min(LOOP_MAX, newExposureTime);
 
         // 设置新的曝光时间
+        ROS_INFO("Setting exposure time to: %.2f", newExposureTime);
         nRet = MV_CC_SetFloatValue(handle, "ExposureTime", newExposureTime);
         if (MV_OK != nRet) {
             ROS_ERROR("Set ExposureTime fail! nRet [0x%x]\n", nRet);
